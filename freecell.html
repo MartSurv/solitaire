@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>FreeCell</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>"
+    />
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      .game {
+        max-width: 880px;
+      }
+      .top-left {
+        gap: 10px;
+      }
+      .top-right {
+        gap: 10px;
+      }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  </head>
+  <body>
+    <canvas id="bg"></canvas>
+    <div class="felt"></div>
+    <canvas id="winCanvas"></canvas>
+
+    <div class="hdr">
+      <div class="logo">
+        <i>♠</i> FreeCell <a href="index.html">Klondike</a>
+      </div>
+      <div class="stats">
+        <div class="st">Moves<b id="moves">0</b></div>
+        <div class="st">Time<b id="timer">0:00</b></div>
+      </div>
+      <div class="ctrls">
+        <button class="btn" id="hintBtn">Hint</button>
+        <button class="btn" id="undoBtn">Undo</button>
+        <button class="btn gold" id="newBtn">New Game</button>
+      </div>
+    </div>
+
+    <div class="game" id="game">
+      <div class="top-row">
+        <div class="top-left">
+          <div class="slot freecell-slot" id="c0"></div>
+          <div class="slot freecell-slot" id="c1"></div>
+          <div class="slot freecell-slot" id="c2"></div>
+          <div class="slot freecell-slot" id="c3"></div>
+        </div>
+        <div class="top-right">
+          <div class="slot foundation" id="f0" data-suit="♠"></div>
+          <div class="slot foundation" id="f1" data-suit="♥"></div>
+          <div class="slot foundation" id="f2" data-suit="♦"></div>
+          <div class="slot foundation" id="f3" data-suit="♣"></div>
+        </div>
+      </div>
+      <div class="tableau">
+        <div class="pile" id="p0"></div>
+        <div class="pile" id="p1"></div>
+        <div class="pile" id="p2"></div>
+        <div class="pile" id="p3"></div>
+        <div class="pile" id="p4"></div>
+        <div class="pile" id="p5"></div>
+        <div class="pile" id="p6"></div>
+        <div class="pile" id="p7"></div>
+      </div>
+    </div>
+
+    <div class="auto-banner" id="autoBanner">
+      All cards in order!
+      <button class="btn gold" id="autoBtn">Auto Complete</button>
+    </div>
+    <div class="auto-banner" id="stuckBanner">
+      No moves available.
+      <button class="btn gold" id="stuckNewBtn">New Game</button>
+    </div>
+
+    <div class="overlay" id="winOverlay">
+      <div class="modal">
+        <h2>You Win!</h2>
+        <p>FreeCell conquered.</p>
+        <div class="fstats">
+          <div class="fst">
+            <div class="v" id="fMoves">0</div>
+            <div class="l">Moves</div>
+          </div>
+          <div class="fst">
+            <div class="v" id="fTime">0:00</div>
+            <div class="l">Time</div>
+          </div>
+        </div>
+        <button
+          class="btn gold"
+          style="font-size: 14px; padding: 11px 30px"
+          id="playAgainBtn"
+        >
+          Play Again
+        </button>
+      </div>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="freecell-game.js"></script>
+  </body>
+</html>
