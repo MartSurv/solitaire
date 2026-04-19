@@ -396,63 +396,119 @@ function handleRightClick(card, srcT, srcI, cIdx, e) {
 }
 
 // ─── Hint system ────────────────────────────────────────
+// Score a foundation move: safer/earlier ranks rank higher so we don't
+// bury a card the tableau might still need.
+function scoreFoundationMove(card) {
+  if (card.rank === "A") return 400;
+  if (card.rank === "2") return 350;
+  const cardRed = isRed(card);
+  let minOpp = 99;
+  for (let fi = 0; fi < 4; fi++) {
+    const suit = SUITS[fi];
+    const fRed = SC[suit] === "red";
+    if (fRed === cardRed) continue;
+    const f = foundations[fi];
+    const top = f.length ? RV[f[f.length - 1].rank] : -1;
+    if (top < minOpp) minOpp = top;
+  }
+  // Classic safety rule: only auto-promote when both opposite-color
+  // foundations are within one rank — otherwise the card may still be
+  // needed on the tableau.
+  return RV[card.rank] <= minOpp + 2 ? 200 : 60;
+}
+
+// True if some King is movable into an empty column — i.e. emptying
+// one would actually help. Excludes the column we're about to empty.
+function hasUsefulKing(excludePi) {
+  if (waste.length && waste[waste.length - 1].rank === "K") return true;
+  for (let pi = 0; pi < 7; pi++) {
+    if (pi === excludePi) continue;
+    const p = tableau[pi];
+    for (let ci = 0; ci < p.length; ci++) {
+      if (!p[ci].faceUp) continue;
+      // King buried under face-downs — moving it to an empty col unburies them
+      if (p[ci].rank === "K" && ci > 0 && !p[ci - 1].faceUp) return true;
+    }
+  }
+  return false;
+}
+
 function findHint() {
+  const moves = [];
+
   if (waste.length) {
     const c = waste[waste.length - 1];
+    const cIdx = waste.length - 1;
     const fi = findFnd(c, foundations);
-    if (fi >= 0)
-      return {
-        srcT: "waste",
-        srcI: 0,
-        cIdx: waste.length - 1,
-        dstT: "foundation",
-        dstI: fi,
-      };
-    for (let pi = 0; pi < 7; pi++)
-      if (canTab(c, tableau[pi]))
-        return {
-          srcT: "waste",
-          srcI: 0,
-          cIdx: waste.length - 1,
-          dstT: "tableau",
-          dstI: pi,
-        };
+    if (fi >= 0) {
+      moves.push({
+        srcT: "waste", srcI: 0, cIdx,
+        dstT: "foundation", dstI: fi,
+        score: scoreFoundationMove(c) + 30,
+      });
+    }
+    for (let pi = 0; pi < 7; pi++) {
+      if (!canTab(c, tableau[pi])) continue;
+      // Avoid "burning" a K from waste onto an empty column if we have
+      // a tableau K buried under face-downs — unburying that is better.
+      const emptyDst = !tableau[pi].length;
+      let s = 80;
+      if (c.rank === "K" && emptyDst && hasUsefulKing(-1)) s = 70;
+      moves.push({
+        srcT: "waste", srcI: 0, cIdx,
+        dstT: "tableau", dstI: pi, score: s,
+      });
+    }
   }
+
   for (let pi = 0; pi < 7; pi++) {
     const p = tableau[pi];
     if (!p.length) continue;
-    const fi = findFnd(p[p.length - 1], foundations);
-    if (fi >= 0)
-      return {
-        srcT: "tableau",
-        srcI: pi,
-        cIdx: p.length - 1,
-        dstT: "foundation",
-        dstI: fi,
-      };
-  }
-  for (let pi = 0; pi < 7; pi++) {
-    const p = tableau[pi];
-    if (!p.length) continue;
+
+    const top = p[p.length - 1];
+    const fi = findFnd(top, foundations);
+    if (fi >= 0) {
+      const exposesDown = p.length >= 2 && !p[p.length - 2].faceUp;
+      moves.push({
+        srcT: "tableau", srcI: pi, cIdx: p.length - 1,
+        dstT: "foundation", dstI: fi,
+        score: scoreFoundationMove(top) + (exposesDown ? 1000 : 0),
+      });
+    }
+
     for (let ci = 0; ci < p.length; ci++) {
       if (!p[ci].faceUp) continue;
       for (let di = 0; di < 7; di++) {
         if (di === pi) continue;
-        if (canTab(p[ci], tableau[di])) {
-          if (p[ci].rank === "K" && ci === 0 && !tableau[di].length) continue;
-          return {
-            srcT: "tableau",
-            srcI: pi,
-            cIdx: ci,
-            dstT: "tableau",
-            dstI: di,
-          };
+        if (!canTab(p[ci], tableau[di])) continue;
+        if (p[ci].rank === "K" && ci === 0 && !tableau[di].length) continue;
+
+        let s = 30;
+        // Unblock face-down cards — the whole point of "smart" hinting.
+        if (ci > 0 && !p[ci - 1].faceUp) {
+          let buried = 0;
+          for (let i = ci - 1; i >= 0 && !p[i].faceUp; i--) buried++;
+          s += 1000 + buried * 50;
         }
+        // Empties a column — only a win if some King can use it.
+        if (ci === 0) {
+          s += hasUsefulKing(pi) ? 500 : -20;
+        }
+        // Prefer moving onto a non-empty pile (consolidates runs).
+        if (tableau[di].length) s += 5;
+        moves.push({
+          srcT: "tableau", srcI: pi, cIdx: ci,
+          dstT: "tableau", dstI: di, score: s,
+        });
       }
     }
   }
-  if (stock.length) return { srcT: "stock" };
-  return null;
+
+  if (stock.length) moves.push({ srcT: "stock", score: 5 });
+
+  if (!moves.length) return null;
+  moves.sort((a, b) => b.score - a.score);
+  return moves[0];
 }
 
 function showHint() {

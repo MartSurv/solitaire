@@ -233,17 +233,62 @@ function handleRightClick(card, srcT, srcI, cIdx, e) {
 }
 
 // ─── Hint ───────────────────────────────────────────
-function findHint() {
-  for (let ci = 0; ci < 4; ci++) {
-    if (!cells[ci]) continue;
-    if (findFnd(cells[ci], foundations) >= 0) return { srcT: "cell", srcI: ci };
+// Safe foundation rule: A/2 always safe; otherwise only when opposite-color
+// foundations have caught up (card won't still be needed on the tableau).
+function scoreFoundationMove(card) {
+  if (card.rank === "A") return 400;
+  if (card.rank === "2") return 350;
+  const cardRed = isRed(card);
+  let minOpp = 99;
+  for (let fi = 0; fi < 4; fi++) {
+    const suit = SUITS[fi];
+    const fRed = SC[suit] === "red";
+    if (fRed === cardRed) continue;
+    const f = foundations[fi];
+    const top = f.length ? RV[f[f.length - 1].rank] : -1;
+    if (top < minOpp) minOpp = top;
   }
+  return RV[card.rank] <= minOpp + 2 ? 200 : 60;
+}
+
+function findHint() {
+  const moves = [];
+  const freeCount = cells.filter((c) => c === null).length;
+
+  // Cell → foundation (always a small win: frees a cell)
+  for (let ci = 0; ci < 4; ci++) {
+    const c = cells[ci];
+    if (!c) continue;
+    const fi = findFnd(c, foundations);
+    if (fi >= 0) {
+      moves.push({
+        srcT: "cell", srcI: ci,
+        dstT: "foundation", dstI: fi,
+        score: scoreFoundationMove(c) + 50,
+      });
+    }
+  }
+
+  // Tableau top → foundation
   for (let pi = 0; pi < 8; pi++) {
     const p = tableau[pi];
     if (!p.length) continue;
-    if (findFnd(p[p.length - 1], foundations) >= 0)
-      return { srcT: "tableau", srcI: pi, cIdx: p.length - 1 };
+    const top = p[p.length - 1];
+    const fi = findFnd(top, foundations);
+    if (fi >= 0) {
+      let s = scoreFoundationMove(top);
+      // Reveals a card that itself can go to foundation — chain reaction
+      if (p.length >= 2 && findFnd(p[p.length - 2], foundations) >= 0) s += 200;
+      // Empties a cascade — huge in FreeCell (doubles movable stack size)
+      if (p.length === 1) s += 300;
+      moves.push({
+        srcT: "tableau", srcI: pi, cIdx: p.length - 1,
+        dstT: "foundation", dstI: fi, score: s,
+      });
+    }
   }
+
+  // Tableau → tableau (single card or valid run)
   for (let pi = 0; pi < 8; pi++) {
     const p = tableau[pi];
     if (!p.length) continue;
@@ -252,28 +297,49 @@ function findHint() {
       const stackSize = p.length - ci;
       for (let di = 0; di < 8; di++) {
         if (di === pi) continue;
-        if (
-          canTab(p[ci], tableau[di]) &&
-          tableau[di].length > 0 &&
-          stackSize <= maxMovable(di)
-        )
-          return {
-            srcT: "tableau",
-            srcI: pi,
-            cIdx: ci,
-            dstT: "tableau",
-            dstI: di,
-          };
+        if (stackSize > maxMovable(di)) continue;
+        const dst = tableau[di];
+        if (dst.length && !canTab(p[ci], dst)) continue;
+
+        let s = 30;
+        // Reveals a foundation-playable card underneath.
+        if (ci > 0 && findFnd(p[ci - 1], foundations) >= 0) s += 600;
+        // Empties a cascade — huge, but only if destination isn't also empty
+        // (that would be a pure lateral shuffle).
+        if (ci === 0) s += dst.length ? 800 : -100;
+        // Prefer consolidating onto an existing run rather than opening space.
+        if (dst.length) s += 20;
+        // Bigger purposeful moves rank slightly higher.
+        s += Math.min(stackSize, 5) * 5;
+        moves.push({
+          srcT: "tableau", srcI: pi, cIdx: ci,
+          dstT: "tableau", dstI: di, score: s,
+        });
       }
     }
   }
+
+  // Cell → tableau (frees a cell — more valuable when cells are full)
   for (let ci = 0; ci < 4; ci++) {
-    if (!cells[ci]) continue;
-    for (let pi = 0; pi < 8; pi++)
-      if (canTab(cells[ci], tableau[pi]) && tableau[pi].length > 0)
-        return { srcT: "cell", srcI: ci, dstT: "tableau", dstI: pi };
+    const c = cells[ci];
+    if (!c) continue;
+    for (let pi = 0; pi < 8; pi++) {
+      const dst = tableau[pi];
+      if (dst.length && !canTab(c, dst)) continue;
+      let s = 120 + (4 - freeCount) * 30;
+      // Burning a cell card into an empty column usually costs more than it
+      // saves (empty columns are worth more than free cells for big moves).
+      if (!dst.length) s -= 100;
+      moves.push({
+        srcT: "cell", srcI: ci,
+        dstT: "tableau", dstI: pi, score: s,
+      });
+    }
   }
-  return null;
+
+  if (!moves.length) return null;
+  moves.sort((a, b) => b.score - a.score);
+  return moves[0];
 }
 
 function showHint() {
