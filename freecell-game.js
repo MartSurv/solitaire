@@ -151,7 +151,7 @@ function doMove(srcT, srcI, cIdx, dstT, dstI) {
 
   playSound("place");
   addMove();
-  render();
+  renderAfterMove(srcT, srcI, dstT, dstI);
   checkAutoComplete();
   checkWin();
 }
@@ -234,24 +234,6 @@ function handleRightClick(card, srcT, srcI, cIdx, e) {
 }
 
 // ─── Hint ───────────────────────────────────────────
-// Safe foundation rule: A/2 always safe; otherwise only when opposite-color
-// foundations have caught up (card won't still be needed on the tableau).
-function scoreFoundationMove(card) {
-  if (card.rank === "A") return 400;
-  if (card.rank === "2") return 350;
-  const cardRed = isRed(card);
-  let minOpp = 99;
-  for (let fi = 0; fi < 4; fi++) {
-    const suit = SUITS[fi];
-    const fRed = SC[suit] === "red";
-    if (fRed === cardRed) continue;
-    const f = foundations[fi];
-    const top = f.length ? RV[f[f.length - 1].rank] : -1;
-    if (top < minOpp) minOpp = top;
-  }
-  return RV[card.rank] <= minOpp + 2 ? 200 : 60;
-}
-
 function findHint() {
   const moves = [];
   const freeCount = cells.filter((c) => c === null).length;
@@ -265,7 +247,7 @@ function findHint() {
       moves.push({
         srcT: "cell", srcI: ci,
         dstT: "foundation", dstI: fi,
-        score: scoreFoundationMove(c) + 50,
+        score: scoreFoundationMove(c, foundations) + 50,
       });
     }
   }
@@ -277,7 +259,7 @@ function findHint() {
     const top = p[p.length - 1];
     const fi = findFnd(top, foundations);
     if (fi >= 0) {
-      let s = scoreFoundationMove(top);
+      let s = scoreFoundationMove(top, foundations);
       // Reveals a card that itself can go to foundation — chain reaction
       if (p.length >= 2 && findFnd(p[p.length - 2], foundations) >= 0) s += 200;
       // Empties a cascade — huge in FreeCell (doubles movable stack size)
@@ -469,53 +451,68 @@ function render() {
   renderTab();
 }
 
+function renderOneCell(ci) {
+  const el = document.getElementById(`c${ci}`);
+  el.querySelectorAll(".card").forEach((x) => x.remove());
+  const c = cells[ci];
+  if (c) {
+    const ce = mkEl(c);
+    ce.style.cssText = "position:absolute;left:0;top:0";
+    bind(ce, c, "cell", ci, 0);
+    el.appendChild(ce);
+  }
+}
+
 function renderCells() {
-  cells.forEach((c, ci) => {
-    const el = document.getElementById(`c${ci}`);
-    el.querySelectorAll(".card").forEach((x) => x.remove());
-    if (c) {
-      const ce = mkEl(c);
-      ce.style.cssText = "position:absolute;left:0;top:0";
-      bind(ce, c, "cell", ci, 0);
-      el.appendChild(ce);
-    }
-  });
+  for (let ci = 0; ci < 4; ci++) renderOneCell(ci);
+}
+
+function renderOneFnd(fi) {
+  const el = document.getElementById(`f${fi}`);
+  el.querySelectorAll(".card").forEach((x) => x.remove());
+  const f = foundations[fi];
+  if (f.length) {
+    const c = f[f.length - 1],
+      ce = mkEl(c);
+    ce.style.cssText = "position:absolute;left:0;top:0";
+    bind(ce, c, "foundation", fi, f.length - 1);
+    el.appendChild(ce);
+  }
 }
 
 function renderFnd() {
-  foundations.forEach((f, fi) => {
-    const el = document.getElementById(`f${fi}`);
-    el.querySelectorAll(".card").forEach((x) => x.remove());
-    if (f.length) {
-      const c = f[f.length - 1],
-        ce = mkEl(c);
-      ce.style.cssText = "position:absolute;left:0;top:0";
-      bind(ce, c, "foundation", fi, f.length - 1);
-      el.appendChild(ce);
-    }
-  });
+  for (let fi = 0; fi < 4; fi++) renderOneFnd(fi);
 }
 
-function renderTab() {
+function renderOnePile(pi) {
   const cs = getComputedStyle(document.documentElement);
   const fan = parseFloat(cs.getPropertyValue("--fan-fc")) || 24;
   const cardH = parseFloat(cs.getPropertyValue("--ch")) || 147;
-  tableau.forEach((pile, pi) => {
-    const el = document.getElementById(`p${pi}`);
-    el.querySelectorAll(".card").forEach((x) => x.remove());
-    pile.forEach((c, ci) => {
-      const ce = mkEl(c);
-      const top = ci * fan;
-      ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
-      bind(ce, c, "tableau", pi, ci);
-      el.appendChild(ce);
-    });
-    let h = cardH;
-    pile.forEach((c, i) => {
-      if (i > 0) h += fan;
-    });
-    el.style.minHeight = h + "px";
+  const pile = tableau[pi];
+  const el = document.getElementById(`p${pi}`);
+  el.querySelectorAll(".card").forEach((x) => x.remove());
+  pile.forEach((c, ci) => {
+    const ce = mkEl(c);
+    const top = ci * fan;
+    ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
+    bind(ce, c, "tableau", pi, ci);
+    el.appendChild(ce);
   });
+  el.style.minHeight = cardH + Math.max(0, pile.length - 1) * fan + "px";
+}
+
+function renderTab() {
+  for (let pi = 0; pi < 8; pi++) renderOnePile(pi);
+}
+
+// Only re-render the DOM slots that the move actually touched.
+function renderAfterMove(srcT, srcI, dstT, dstI) {
+  if (srcT === "tableau") renderOnePile(srcI);
+  else if (srcT === "cell") renderOneCell(srcI);
+  else if (srcT === "foundation") renderOneFnd(srcI);
+  if (dstT === "tableau" && dstI !== srcI) renderOnePile(dstI);
+  else if (dstT === "cell") renderOneCell(dstI);
+  else if (dstT === "foundation") renderOneFnd(dstI);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -555,6 +552,12 @@ function bind(el, card, srcT, srcI, cIdx) {
       sy: pt.y,
       dragging: false,
       clickEl: el,
+      fan:
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(
+            "--fan-fc",
+          ),
+        ) || 24,
     };
   }
   el.addEventListener("mousedown", onStart);
@@ -586,14 +589,10 @@ function onMove(e) {
       dragState.cards.length,
     );
   }
-  const dragFan =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--fan-fc"),
-    ) || 24;
   dragState.els.forEach((de, i) => {
     de.style.position = "fixed";
     de.style.left = pt.x - dragState.ox + "px";
-    de.style.top = pt.y - dragState.oy + i * dragFan + "px";
+    de.style.top = pt.y - dragState.oy + i * dragState.fan + "px";
     de.style.zIndex = 10000 + i;
   });
   e.preventDefault();

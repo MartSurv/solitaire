@@ -142,9 +142,26 @@ function showScorePop(pts, x, y) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  THREE.JS — win burst only
+//  THREE.JS — win burst only (lazy-loaded on first win)
 // ═══════════════════════════════════════════════════════
-(function () {
+let _threeLoader = null;
+function loadThreeJs() {
+  if (_threeLoader) return _threeLoader;
+  _threeLoader = new Promise((resolve, reject) => {
+    if (typeof THREE !== "undefined") return resolve();
+    const s = document.createElement("script");
+    s.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("three.js failed to load"));
+    document.head.appendChild(s);
+  });
+  return _threeLoader;
+}
+
+let _threeBurst = null;
+function initThreeScene() {
+  if (_threeBurst) return;
   const canvas = document.getElementById("bg");
   if (!canvas || typeof THREE === "undefined") return;
   const W = () => innerWidth,
@@ -163,7 +180,7 @@ function showScorePop(pts, x, y) {
     winT = 0,
     animating = false;
 
-  window.triggerWinEffect = function () {
+  _threeBurst = function () {
     if (winP) {
       scene.remove(winP);
       winP.geometry.dispose();
@@ -244,7 +261,17 @@ function showScorePop(pts, x, y) {
     cam.aspect = W() / H();
     cam.updateProjectionMatrix();
   });
-})();
+}
+
+window.triggerWinEffect = async function () {
+  try {
+    await loadThreeJs();
+    initThreeScene();
+    if (_threeBurst) _threeBurst();
+  } catch (err) {
+    console.warn("Win effect unavailable:", err);
+  }
+};
 
 // ═══════════════════════════════════════════════════════
 //  WIN CASCADE — bouncing cards on canvas
@@ -470,28 +497,22 @@ function applyTheme(idx) {
   document.documentElement.style.setProperty("--cur-border", t.border);
 }
 
-function initThemes(onChangeCallback) {
-  const picker = document.getElementById("themePicker");
-  if (!picker) return;
-  const cur = localStorage.getItem(THEME_KEY) || "0";
-  applyTheme(+cur);
-  THEMES.forEach((t, i) => {
-    const btn = document.createElement("div");
-    btn.className = "theme-btn" + (i === +cur ? " active" : "");
-    btn.style.background = t.bg;
-    btn.style.borderColor = i === +cur ? "#e8c840" : "transparent";
-    btn.title = t.name;
-    btn.onclick = () => {
-      applyTheme(i);
-      localStorage.setItem(THEME_KEY, i);
-      picker.querySelectorAll(".theme-btn").forEach((b, j) => {
-        b.classList.toggle("active", j === i);
-        b.style.borderColor = j === i ? "#e8c840" : "transparent";
-      });
-      if (onChangeCallback) onChangeCallback();
-    };
-    picker.appendChild(btn);
-  });
+// Score a foundation move — safer/earlier ranks higher so autoplay doesn't
+// bury a card the tableau may still need. Classic Klondike/FreeCell safety rule.
+function scoreFoundationMove(card, foundations) {
+  if (card.rank === "A") return 400;
+  if (card.rank === "2") return 350;
+  const cardRed = isRed(card);
+  let minOpp = 99;
+  for (let fi = 0; fi < 4; fi++) {
+    const suit = SUITS[fi];
+    const fRed = SC[suit] === "red";
+    if (fRed === cardRed) continue;
+    const f = foundations[fi];
+    const top = f.length ? RV[f[f.length - 1].rank] : -1;
+    if (top < minOpp) minOpp = top;
+  }
+  return RV[card.rank] <= minOpp + 2 ? 200 : 60;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -806,11 +827,11 @@ function initSettings(onChangeCallback) {
     prefs.felt = "custom";
     prefs.customFelt = feltInput.value;
     feltCustom.style.background = feltInput.value;
-    savePrefs(prefs);
     applyPrefs(prefs);
     updateFeltActive();
     if (onChangeCallback) onChangeCallback();
   };
+  feltInput.onchange = () => savePrefs(prefs);
   feltCustom.appendChild(feltInput);
   feltEl.appendChild(feltCustom);
 
@@ -867,7 +888,6 @@ function initSettings(onChangeCallback) {
     btn.title = t.name;
     btn.onclick = () => {
       prefs.back = i;
-      localStorage.setItem(THEME_KEY, i);
       savePrefs(prefs);
       applyPrefs(prefs);
       updateBackActive();
@@ -888,11 +908,11 @@ function initSettings(onChangeCallback) {
     prefs.back = "custom";
     prefs.customBack = backInput.value;
     backCustom.style.background = backInput.value;
-    savePrefs(prefs);
     applyPrefs(prefs);
     updateBackActive();
     if (onChangeCallback) onChangeCallback();
   };
+  backInput.onchange = () => savePrefs(prefs);
   backCustom.appendChild(backInput);
   backEl.appendChild(backCustom);
   updateBackActive();
@@ -928,8 +948,6 @@ function initSettings(onChangeCallback) {
     btn.textContent = preset.label;
     btn.onclick = () => {
       Object.assign(prefs, preset.values);
-      if (typeof prefs.back === "number")
-        localStorage.setItem(THEME_KEY, prefs.back);
       savePrefs(prefs);
       applyPrefs(prefs);
       syncAll();
@@ -941,7 +959,6 @@ function initSettings(onChangeCallback) {
   document.getElementById("resetDefaultsBtn").onclick = () => {
     Object.keys(prefs).forEach((k) => delete prefs[k]);
     Object.assign(prefs, DEFAULT_PREFS);
-    localStorage.removeItem(THEME_KEY);
     savePrefs(prefs);
     applyPrefs(prefs);
     syncAll();

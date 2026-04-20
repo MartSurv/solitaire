@@ -229,7 +229,8 @@ function drawStock() {
     waste.push(c);
   }
   addMove();
-  render();
+  renderStock();
+  renderWaste();
 }
 
 // ─── Move with FLIP animation ───────────────────────────
@@ -276,7 +277,7 @@ function doMove(srcT, srcI, cIdx, dstT, dstI, animate) {
 
   playSound("place");
   addMove();
-  render();
+  renderAfterMove(srcT, srcI, dstT, dstI);
 
   if (animate && srcRects.length) {
     let destEls = [];
@@ -325,7 +326,7 @@ function doMove(srcT, srcI, cIdx, dstT, dstI, animate) {
           animData.forEach(({ el }) => {
             if (el.parentElement === document.body) el.remove();
           });
-          render();
+          renderAfterMove(srcT, srcI, dstT, dstI);
           bounceAndScore(dstT, dstI, pts);
         }
         lastEl.addEventListener("transitionend", finish, { once: true });
@@ -397,27 +398,6 @@ function handleRightClick(card, srcT, srcI, cIdx, e) {
 }
 
 // ─── Hint system ────────────────────────────────────────
-// Score a foundation move: safer/earlier ranks rank higher so we don't
-// bury a card the tableau might still need.
-function scoreFoundationMove(card) {
-  if (card.rank === "A") return 400;
-  if (card.rank === "2") return 350;
-  const cardRed = isRed(card);
-  let minOpp = 99;
-  for (let fi = 0; fi < 4; fi++) {
-    const suit = SUITS[fi];
-    const fRed = SC[suit] === "red";
-    if (fRed === cardRed) continue;
-    const f = foundations[fi];
-    const top = f.length ? RV[f[f.length - 1].rank] : -1;
-    if (top < minOpp) minOpp = top;
-  }
-  // Classic safety rule: only auto-promote when both opposite-color
-  // foundations are within one rank — otherwise the card may still be
-  // needed on the tableau.
-  return RV[card.rank] <= minOpp + 2 ? 200 : 60;
-}
-
 // True if some King is movable into an empty column — i.e. emptying
 // one would actually help. Excludes the column we're about to empty.
 function hasUsefulKing(excludePi) {
@@ -445,7 +425,7 @@ function findHint() {
       moves.push({
         srcT: "waste", srcI: 0, cIdx,
         dstT: "foundation", dstI: fi,
-        score: scoreFoundationMove(c) + 30,
+        score: scoreFoundationMove(c, foundations) + 30,
       });
     }
     for (let pi = 0; pi < 7; pi++) {
@@ -473,7 +453,7 @@ function findHint() {
       moves.push({
         srcT: "tableau", srcI: pi, cIdx: p.length - 1,
         dstT: "foundation", dstI: fi,
-        score: scoreFoundationMove(top) + (exposesDown ? 1000 : 0),
+        score: scoreFoundationMove(top, foundations) + (exposesDown ? 1000 : 0),
       });
     }
 
@@ -679,42 +659,54 @@ function renderWaste() {
   });
 }
 
-function renderFnd() {
-  foundations.forEach((f, fi) => {
-    const el = document.getElementById(`f${fi}`);
-    el.querySelectorAll(".card").forEach((c) => c.remove());
-    if (f.length) {
-      const c = f[f.length - 1],
-        ce = mkEl(c);
-      ce.style.cssText = "position:absolute;left:0;top:0";
-      bind(ce, c, "foundation", fi, f.length - 1);
-      el.appendChild(ce);
-    }
-  });
+function renderOneFnd(fi) {
+  const el = document.getElementById(`f${fi}`);
+  el.querySelectorAll(".card").forEach((c) => c.remove());
+  const f = foundations[fi];
+  if (f.length) {
+    const c = f[f.length - 1],
+      ce = mkEl(c);
+    ce.style.cssText = "position:absolute;left:0;top:0";
+    bind(ce, c, "foundation", fi, f.length - 1);
+    el.appendChild(ce);
+  }
 }
 
-function renderTab() {
+function renderFnd() {
+  for (let fi = 0; fi < 4; fi++) renderOneFnd(fi);
+}
+
+function renderOnePile(pi) {
   const cs = getComputedStyle(document.documentElement);
   const fanUp = parseFloat(cs.getPropertyValue("--fan-up")) || 28;
   const fanDown = parseFloat(cs.getPropertyValue("--fan-down")) || 8;
   const cardH = parseFloat(cs.getPropertyValue("--ch")) || 147;
-  tableau.forEach((pile, pi) => {
-    const el = document.getElementById(`p${pi}`);
-    el.querySelectorAll(".card").forEach((c) => c.remove());
-    pile.forEach((c, ci) => {
-      const ce = mkEl(c);
-      let top = 0;
-      for (let k = 0; k < ci; k++) top += pile[k].faceUp ? fanUp : fanDown;
-      ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
-      if (c.faceUp) bind(ce, c, "tableau", pi, ci);
-      el.appendChild(ce);
-    });
-    let h = cardH;
-    pile.forEach((c, i) => {
-      if (i > 0) h += c.faceUp ? fanUp : fanDown;
-    });
-    el.style.minHeight = h + "px";
+  const pile = tableau[pi];
+  const el = document.getElementById(`p${pi}`);
+  el.querySelectorAll(".card").forEach((c) => c.remove());
+  let top = 0;
+  pile.forEach((c, ci) => {
+    const ce = mkEl(c);
+    ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
+    if (c.faceUp) bind(ce, c, "tableau", pi, ci);
+    el.appendChild(ce);
+    top += c.faceUp ? fanUp : fanDown;
   });
+  const firstOffset = pile.length ? (pile[0].faceUp ? fanUp : fanDown) : 0;
+  el.style.minHeight = cardH + Math.max(0, top - firstOffset) + "px";
+}
+
+function renderTab() {
+  for (let pi = 0; pi < 7; pi++) renderOnePile(pi);
+}
+
+// Only re-render the DOM slots that the move actually touched.
+function renderAfterMove(srcT, srcI, dstT, dstI) {
+  if (srcT === "tableau") renderOnePile(srcI);
+  else if (srcT === "waste") renderWaste();
+  else if (srcT === "foundation") renderOneFnd(srcI);
+  if (dstT === "tableau" && dstI !== srcI) renderOnePile(dstI);
+  else if (dstT === "foundation") renderOneFnd(dstI);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -754,6 +746,12 @@ function bind(el, card, srcT, srcI, cIdx) {
       sy: pt.y,
       dragging: false,
       clickEl: el,
+      fan:
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(
+            "--fan-up",
+          ),
+        ) || 28,
     };
   }
   el.addEventListener("mousedown", onStart);
@@ -778,14 +776,10 @@ function onPointerMove(e) {
     });
     showDrop(dragState.cards[0], dragState.srcT, dragState.srcI);
   }
-  const dragFan =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--fan-up"),
-    ) || 28;
   dragState.els.forEach((de, i) => {
     de.style.position = "fixed";
     de.style.left = pt.x - dragState.ox + "px";
-    de.style.top = pt.y - dragState.oy + i * dragFan + "px";
+    de.style.top = pt.y - dragState.oy + i * dragState.fan + "px";
     de.style.zIndex = 10000 + i;
   });
   e.preventDefault();
