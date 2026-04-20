@@ -229,8 +229,7 @@ function drawStock() {
     waste.push(c);
   }
   addMove();
-  renderStock();
-  renderWaste();
+  render();
 }
 
 // ─── Move with FLIP animation ───────────────────────────
@@ -277,7 +276,7 @@ function doMove(srcT, srcI, cIdx, dstT, dstI, animate) {
 
   playSound("place");
   addMove();
-  renderAfterMove(srcT, srcI, dstT, dstI);
+  render();
 
   if (animate && srcRects.length) {
     let destEls = [];
@@ -326,7 +325,7 @@ function doMove(srcT, srcI, cIdx, dstT, dstI, animate) {
           animData.forEach(({ el }) => {
             if (el.parentElement === document.body) el.remove();
           });
-          renderAfterMove(srcT, srcI, dstT, dstI);
+          render();
           bounceAndScore(dstT, dstI, pts);
         }
         lastEl.addEventListener("transitionend", finish, { once: true });
@@ -659,54 +658,42 @@ function renderWaste() {
   });
 }
 
-function renderOneFnd(fi) {
-  const el = document.getElementById(`f${fi}`);
-  el.querySelectorAll(".card").forEach((c) => c.remove());
-  const f = foundations[fi];
-  if (f.length) {
-    const c = f[f.length - 1],
-      ce = mkEl(c);
-    ce.style.cssText = "position:absolute;left:0;top:0";
-    bind(ce, c, "foundation", fi, f.length - 1);
-    el.appendChild(ce);
-  }
-}
-
 function renderFnd() {
-  for (let fi = 0; fi < 4; fi++) renderOneFnd(fi);
+  foundations.forEach((f, fi) => {
+    const el = document.getElementById(`f${fi}`);
+    el.querySelectorAll(".card").forEach((c) => c.remove());
+    if (f.length) {
+      const c = f[f.length - 1],
+        ce = mkEl(c);
+      ce.style.cssText = "position:absolute;left:0;top:0";
+      bind(ce, c, "foundation", fi, f.length - 1);
+      el.appendChild(ce);
+    }
+  });
 }
 
-function renderOnePile(pi) {
+function renderTab() {
   const cs = getComputedStyle(document.documentElement);
   const fanUp = parseFloat(cs.getPropertyValue("--fan-up")) || 28;
   const fanDown = parseFloat(cs.getPropertyValue("--fan-down")) || 8;
   const cardH = parseFloat(cs.getPropertyValue("--ch")) || 147;
-  const pile = tableau[pi];
-  const el = document.getElementById(`p${pi}`);
-  el.querySelectorAll(".card").forEach((c) => c.remove());
-  let top = 0;
-  pile.forEach((c, ci) => {
-    const ce = mkEl(c);
-    ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
-    if (c.faceUp) bind(ce, c, "tableau", pi, ci);
-    el.appendChild(ce);
-    top += c.faceUp ? fanUp : fanDown;
+  tableau.forEach((pile, pi) => {
+    const el = document.getElementById(`p${pi}`);
+    el.querySelectorAll(".card").forEach((c) => c.remove());
+    pile.forEach((c, ci) => {
+      const ce = mkEl(c);
+      let top = 0;
+      for (let k = 0; k < ci; k++) top += pile[k].faceUp ? fanUp : fanDown;
+      ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
+      if (c.faceUp) bind(ce, c, "tableau", pi, ci);
+      el.appendChild(ce);
+    });
+    let h = cardH;
+    pile.forEach((c, i) => {
+      if (i > 0) h += c.faceUp ? fanUp : fanDown;
+    });
+    el.style.minHeight = h + "px";
   });
-  const firstOffset = pile.length ? (pile[0].faceUp ? fanUp : fanDown) : 0;
-  el.style.minHeight = cardH + Math.max(0, top - firstOffset) + "px";
-}
-
-function renderTab() {
-  for (let pi = 0; pi < 7; pi++) renderOnePile(pi);
-}
-
-// Only re-render the DOM slots that the move actually touched.
-function renderAfterMove(srcT, srcI, dstT, dstI) {
-  if (srcT === "tableau") renderOnePile(srcI);
-  else if (srcT === "waste") renderWaste();
-  else if (srcT === "foundation") renderOneFnd(srcI);
-  if (dstT === "tableau" && dstI !== srcI) renderOnePile(dstI);
-  else if (dstT === "foundation") renderOneFnd(dstI);
 }
 
 // ═══════════════════════════════════════════════════════
