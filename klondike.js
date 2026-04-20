@@ -693,20 +693,24 @@ function renderFnd() {
 }
 
 function renderTab() {
+  const cs = getComputedStyle(document.documentElement);
+  const fanUp = parseFloat(cs.getPropertyValue("--fan-up")) || 28;
+  const fanDown = parseFloat(cs.getPropertyValue("--fan-down")) || 8;
+  const cardH = parseFloat(cs.getPropertyValue("--ch")) || 147;
   tableau.forEach((pile, pi) => {
     const el = document.getElementById(`p${pi}`);
     el.querySelectorAll(".card").forEach((c) => c.remove());
     pile.forEach((c, ci) => {
       const ce = mkEl(c);
       let top = 0;
-      for (let k = 0; k < ci; k++) top += pile[k].faceUp ? 28 : 8;
+      for (let k = 0; k < ci; k++) top += pile[k].faceUp ? fanUp : fanDown;
       ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
       if (c.faceUp) bind(ce, c, "tableau", pi, ci);
       el.appendChild(ce);
     });
-    let h = 147;
+    let h = cardH;
     pile.forEach((c, i) => {
-      if (i > 0) h += c.faceUp ? 28 : 8;
+      if (i > 0) h += c.faceUp ? fanUp : fanDown;
     });
     el.style.minHeight = h + "px";
   });
@@ -773,10 +777,14 @@ function onPointerMove(e) {
     });
     showDrop(dragState.cards[0], dragState.srcT, dragState.srcI);
   }
+  const dragFan =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--fan-up"),
+    ) || 28;
   dragState.els.forEach((de, i) => {
     de.style.position = "fixed";
     de.style.left = pt.x - dragState.ox + "px";
-    de.style.top = pt.y - dragState.oy + i * 28 + "px";
+    de.style.top = pt.y - dragState.oy + i * dragFan + "px";
     de.style.zIndex = 10000 + i;
   });
   e.preventDefault();
@@ -1046,6 +1054,9 @@ function showStatsModal() {
 // ═══════════════════════════════════════════════════════
 function dealAnimation() {
   const stockRect = document.getElementById("stock").getBoundingClientRect();
+  const cs = getComputedStyle(document.documentElement);
+  const fanUp = parseFloat(cs.getPropertyValue("--fan-up")) || 28;
+  const fanDown = parseFloat(cs.getPropertyValue("--fan-down")) || 8;
   tableau.forEach((pile, pi) => {
     const pileEl = document.getElementById(`p${pi}`);
     const cards = pileEl.querySelectorAll(".card");
@@ -1062,7 +1073,7 @@ function dealAnimation() {
         ce.classList.add("dealing");
         ce.style.opacity = "1";
         let top = 0;
-        for (let k = 0; k < ci; k++) top += pile[k].faceUp ? 28 : 8;
+        for (let k = 0; k < ci; k++) top += pile[k].faceUp ? fanUp : fanDown;
         ce.style.left = "0";
         ce.style.top = top + "px";
         if (ci === pile.length - 1) playSound("flip");
@@ -1132,14 +1143,11 @@ document.getElementById("stuckNewBtn").onclick = () => newGame();
 document.getElementById("playAgainBtn").onclick = () => newGame();
 document.getElementById("hintBtn").onclick = showHint;
 document.getElementById("statsBtn").onclick = showStatsModal;
-document.getElementById("themeBtn").onclick = () =>
-  document.getElementById("themeOverlay").classList.add("show");
-["statsOverlay", "themeOverlay"].forEach((id) => {
-  document.getElementById(id).addEventListener("click", (e) => {
-    if (e.target.classList.contains("overlay"))
-      e.target.classList.remove("show");
-  });
+document.getElementById("settingsBtn").onclick = openSettings;
+document.getElementById("statsOverlay").addEventListener("click", (e) => {
+  if (e.target.classList.contains("overlay"))
+    e.target.classList.remove("show");
 });
 
-initThemes(render);
+initSettings(render);
 if (!resumeGame()) newGame(true);

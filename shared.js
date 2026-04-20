@@ -493,3 +493,186 @@ function initThemes(onChangeCallback) {
     picker.appendChild(btn);
   });
 }
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS (card size, felt color, card back, reduce motion)
+// ═══════════════════════════════════════════════════════
+const PREFS_KEY = "solitaire_prefs";
+const SIZES = [
+  { id: "tiny", label: "Tiny" },
+  { id: "small", label: "Small" },
+  { id: "medium", label: "Medium" },
+  { id: "large", label: "Large" },
+  { id: "huge", label: "Huge" },
+];
+const FELTS = [
+  { id: "green", label: "Green", color: "#1a6b3c" },
+  { id: "blue", label: "Blue", color: "#1e3f6b" },
+  { id: "burgundy", label: "Burgundy", color: "#6b1a1a" },
+  { id: "charcoal", label: "Charcoal", color: "#2a2a2a" },
+  { id: "purple", label: "Purple", color: "#4a1a6b" },
+];
+const DEFAULT_PREFS = {
+  size: "medium",
+  felt: "green",
+  back: 0,
+  reduceMotion: false,
+};
+
+function getPrefs() {
+  let prefs;
+  try {
+    prefs = JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
+  } catch {
+    prefs = {};
+  }
+  const legacy = localStorage.getItem(THEME_KEY);
+  if (legacy != null && prefs.back == null) prefs.back = +legacy;
+  return { ...DEFAULT_PREFS, ...prefs };
+}
+
+function savePrefs(prefs) {
+  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+}
+
+function applyPrefs(prefs) {
+  const body = document.body;
+  SIZES.forEach((s) => body.classList.remove(`size-${s.id}`));
+  FELTS.forEach((f) => body.classList.remove(`felt-${f.id}`));
+  body.classList.add(`size-${prefs.size}`);
+  body.classList.add(`felt-${prefs.felt}`);
+  body.classList.toggle("reduce-motion", !!prefs.reduceMotion);
+  applyTheme(prefs.back || 0);
+}
+
+function mkDiv(className, textOrChildren) {
+  const d = document.createElement("div");
+  if (className) d.className = className;
+  if (typeof textOrChildren === "string") d.textContent = textOrChildren;
+  else if (Array.isArray(textOrChildren))
+    textOrChildren.forEach((c) => d.appendChild(c));
+  return d;
+}
+
+function buildSettingsModal() {
+  if (document.getElementById("settingsOverlay")) return;
+  const overlay = mkDiv("overlay");
+  overlay.id = "settingsOverlay";
+
+  const modal = mkDiv("modal settings-modal");
+  const h2 = document.createElement("h2");
+  h2.textContent = "Settings";
+  const p = document.createElement("p");
+  p.textContent = "Customize how the game looks.";
+  modal.appendChild(h2);
+  modal.appendChild(p);
+
+  const sizeGroup = mkDiv("setting-group");
+  sizeGroup.appendChild(mkDiv("setting-label", "Card Size"));
+  const sizeHost = mkDiv("seg");
+  sizeHost.id = "setSize";
+  sizeGroup.appendChild(sizeHost);
+  modal.appendChild(sizeGroup);
+
+  const feltGroup = mkDiv("setting-group");
+  feltGroup.appendChild(mkDiv("setting-label", "Felt Color"));
+  const feltHost = mkDiv("swatches");
+  feltHost.id = "setFelt";
+  feltGroup.appendChild(feltHost);
+  modal.appendChild(feltGroup);
+
+  const backGroup = mkDiv("setting-group");
+  backGroup.appendChild(mkDiv("setting-label", "Card Back"));
+  const backHost = mkDiv("themes");
+  backHost.id = "themePicker";
+  backGroup.appendChild(backHost);
+  modal.appendChild(backGroup);
+
+  const motionGroup = mkDiv("setting-group setting-row");
+  motionGroup.appendChild(mkDiv("setting-label", "Reduce Motion"));
+  const sw = document.createElement("label");
+  sw.className = "switch";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.id = "setReduceMotion";
+  const slider = document.createElement("span");
+  slider.className = "slider";
+  sw.appendChild(cb);
+  sw.appendChild(slider);
+  motionGroup.appendChild(sw);
+  modal.appendChild(motionGroup);
+
+  const close = document.createElement("button");
+  close.className = "btn gold";
+  close.id = "settingsCloseBtn";
+  close.textContent = "Done";
+  modal.appendChild(close);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.classList.remove("show");
+  });
+  close.onclick = () => overlay.classList.remove("show");
+}
+
+function initSettings(onChangeCallback) {
+  buildSettingsModal();
+  const prefs = getPrefs();
+  applyPrefs(prefs);
+
+  const sizeEl = document.getElementById("setSize");
+  SIZES.forEach((s) => {
+    const b = document.createElement("button");
+    b.className = "seg-btn" + (s.id === prefs.size ? " active" : "");
+    b.textContent = s.label;
+    b.onclick = () => {
+      prefs.size = s.id;
+      savePrefs(prefs);
+      applyPrefs(prefs);
+      sizeEl
+        .querySelectorAll(".seg-btn")
+        .forEach((x, i) => x.classList.toggle("active", SIZES[i].id === s.id));
+      if (onChangeCallback) onChangeCallback();
+    };
+    sizeEl.appendChild(b);
+  });
+
+  const feltEl = document.getElementById("setFelt");
+  FELTS.forEach((f) => {
+    const b = document.createElement("div");
+    b.className = "swatch" + (f.id === prefs.felt ? " active" : "");
+    b.style.background = f.color;
+    b.title = f.label;
+    b.onclick = () => {
+      prefs.felt = f.id;
+      savePrefs(prefs);
+      applyPrefs(prefs);
+      feltEl
+        .querySelectorAll(".swatch")
+        .forEach((x, i) => x.classList.toggle("active", FELTS[i].id === f.id));
+      if (onChangeCallback) onChangeCallback();
+    };
+    feltEl.appendChild(b);
+  });
+
+  initThemes(() => {
+    prefs.back = +localStorage.getItem(THEME_KEY) || 0;
+    savePrefs(prefs);
+    if (onChangeCallback) onChangeCallback();
+  });
+
+  const rm = document.getElementById("setReduceMotion");
+  rm.checked = !!prefs.reduceMotion;
+  rm.onchange = () => {
+    prefs.reduceMotion = rm.checked;
+    savePrefs(prefs);
+    applyPrefs(prefs);
+    if (onChangeCallback) onChangeCallback();
+  };
+}
+
+function openSettings() {
+  document.getElementById("settingsOverlay").classList.add("show");
+}

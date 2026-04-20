@@ -496,19 +496,22 @@ function renderFnd() {
 }
 
 function renderTab() {
+  const cs = getComputedStyle(document.documentElement);
+  const fan = parseFloat(cs.getPropertyValue("--fan-fc")) || 24;
+  const cardH = parseFloat(cs.getPropertyValue("--ch")) || 147;
   tableau.forEach((pile, pi) => {
     const el = document.getElementById(`p${pi}`);
     el.querySelectorAll(".card").forEach((x) => x.remove());
     pile.forEach((c, ci) => {
       const ce = mkEl(c);
-      let top = ci * 24;
+      const top = ci * fan;
       ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
       bind(ce, c, "tableau", pi, ci);
       el.appendChild(ce);
     });
-    let h = 133;
+    let h = cardH;
     pile.forEach((c, i) => {
-      if (i > 0) h += 24;
+      if (i > 0) h += fan;
     });
     el.style.minHeight = h + "px";
   });
@@ -582,10 +585,14 @@ function onMove(e) {
       dragState.cards.length,
     );
   }
+  const dragFan =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--fan-fc"),
+    ) || 24;
   dragState.els.forEach((de, i) => {
     de.style.position = "fixed";
     de.style.left = pt.x - dragState.ox + "px";
-    de.style.top = pt.y - dragState.oy + i * 24 + "px";
+    de.style.top = pt.y - dragState.oy + i * dragFan + "px";
     de.style.zIndex = 10000 + i;
   });
   e.preventDefault();
@@ -730,6 +737,7 @@ document.getElementById("autoBtn").onclick = runAuto;
 document.getElementById("stuckNewBtn").onclick = newGame;
 document.getElementById("playAgainBtn").onclick = newGame;
 document.getElementById("hintBtn").onclick = showHint;
+document.getElementById("settingsBtn").onclick = openSettings;
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "z") {
     e.preventDefault();
@@ -738,4 +746,5 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "h" || e.key === "H") showHint();
 });
 
+initSettings(render);
 if (!resumeGame()) newGame();

@@ -8,11 +8,39 @@
   --cw: 105px;
   --ch: 147px;
   --cr: 10px;
+  --fan-up: 28px;
+  --fan-down: 8px;
+  --fan-fc: 24px;
   --red: #c0392b;
   --black: #212121;
   --felt: #1a6b3c;
   --cur-back: linear-gradient(145deg, #1e3a6e, #152d5a);
   --cur-border: #2a5298;
+}
+
+/* ── User-customizable card sizes (body class set by Settings) ── */
+body.size-tiny { --cw: 72px; --ch: 101px; --cr: 7px; --fan-up: 19px; --fan-down: 5px; --fan-fc: 16px; }
+body.size-small { --cw: 88px; --ch: 123px; --cr: 8px; --fan-up: 23px; --fan-down: 7px; --fan-fc: 20px; }
+body.size-medium { --cw: 105px; --ch: 147px; --cr: 10px; --fan-up: 28px; --fan-down: 8px; --fan-fc: 24px; }
+body.size-large { --cw: 122px; --ch: 171px; --cr: 12px; --fan-up: 33px; --fan-down: 9px; --fan-fc: 28px; }
+body.size-huge { --cw: 140px; --ch: 196px; --cr: 14px; --fan-up: 37px; --fan-down: 11px; --fan-fc: 32px; }
+
+/* ── Felt colors ── */
+body.felt-green { --felt: #1a6b3c; }
+body.felt-blue { --felt: #1e3f6b; }
+body.felt-burgundy { --felt: #6b1a1a; }
+body.felt-charcoal { --felt: #2a2a2a; }
+body.felt-purple { --felt: #4a1a6b; }
+
+/* ── Reduce motion ── */
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
 }
 
 body {
@@ -640,6 +668,114 @@ body {
   inset: 3px;
   border-radius: 3px;
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ── Settings modal ── */
+.settings-modal {
+  max-width: 460px;
+}
+.setting-group {
+  margin-bottom: 18px;
+  text-align: center;
+}
+.setting-group.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.setting-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+.setting-row .setting-label {
+  margin-bottom: 0;
+}
+.seg {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.seg-btn {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid #ddd;
+  background: #f5f5f5;
+  color: #555;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.seg-btn:hover {
+  border-color: #bbb;
+}
+.seg-btn.active {
+  background: #1a6b3c;
+  border-color: #1a6b3c;
+  color: #fff;
+}
+.swatches {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: all 0.15s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.swatch:hover {
+  transform: translateY(-2px);
+}
+.swatch.active {
+  border-color: #e8c840;
+  box-shadow: 0 0 12px rgba(232, 200, 64, 0.4);
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  background: #ccc;
+  border-radius: 24px;
+  transition: background 0.2s;
+}
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.switch input:checked + .slider {
+  background: #1a6b3c;
+}
+.switch input:checked + .slider::before {
+  transform: translateX(20px);
 }
 
 .auto-banner {
