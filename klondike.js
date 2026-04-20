@@ -130,6 +130,7 @@ function addScore(n, el) {
 }
 function addMove() {
   moveCount++;
+  if (!timerInterval) startTimer();
   updStats();
   saveGame();
 }
@@ -1089,6 +1090,7 @@ function dealAnimation() {
 function newGame(skipStats) {
   if (window._stopCascade) window._stopCascade();
   clearInterval(timerInterval);
+  timerInterval = null;
   document.getElementById("winOverlay").classList.remove("show");
   document.getElementById("autoBanner").classList.remove("show");
   document.getElementById("stuckBanner").classList.remove("show");
@@ -1121,7 +1123,6 @@ function newGame(skipStats) {
     }
   stock = deck.reverse();
   render();
-  startTimer();
   saveGame();
   setTimeout(dealAnimation, 30);
 }
@@ -1131,7 +1132,7 @@ function resumeGame() {
   updStats();
   document.getElementById("timer").textContent = fmt(timerSec);
   render();
-  startTimer();
+  if (timerSec > 0) startTimer();
   return true;
 }
 

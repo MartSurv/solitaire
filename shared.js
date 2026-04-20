@@ -515,9 +515,69 @@ const FELTS = [
 const DEFAULT_PREFS = {
   size: "medium",
   felt: "green",
+  customFelt: null,
+  feltImage: null,
   back: 0,
+  customBack: null,
   reduceMotion: false,
 };
+
+const PRESETS = [
+  {
+    id: "default",
+    label: "Default",
+    values: { ...DEFAULT_PREFS },
+  },
+  {
+    id: "dark",
+    label: "Dark Mode",
+    values: {
+      size: "medium",
+      felt: "charcoal",
+      customFelt: null,
+      back: 3,
+      customBack: null,
+      reduceMotion: false,
+    },
+  },
+  {
+    id: "retro",
+    label: "Retro",
+    values: {
+      size: "medium",
+      felt: "burgundy",
+      customFelt: null,
+      back: 1,
+      customBack: null,
+      reduceMotion: false,
+    },
+  },
+  {
+    id: "accessibility",
+    label: "Accessibility",
+    values: {
+      size: "huge",
+      felt: "charcoal",
+      customFelt: null,
+      back: 3,
+      customBack: null,
+      reduceMotion: true,
+    },
+  },
+];
+
+function darkenHex(hex, pct) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  let r = (n >> 16) & 255,
+    g = (n >> 8) & 255,
+    b = n & 255;
+  r = Math.max(0, Math.floor(r * (1 - pct)));
+  g = Math.max(0, Math.floor(g * (1 - pct)));
+  b = Math.max(0, Math.floor(b * (1 - pct)));
+  return (
+    "#" + ((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")
+  );
+}
 
 function getPrefs() {
   let prefs;
@@ -537,12 +597,65 @@ function savePrefs(prefs) {
 
 function applyPrefs(prefs) {
   const body = document.body;
+  const root = document.documentElement;
   SIZES.forEach((s) => body.classList.remove(`size-${s.id}`));
   FELTS.forEach((f) => body.classList.remove(`felt-${f.id}`));
   body.classList.add(`size-${prefs.size}`);
-  body.classList.add(`felt-${prefs.felt}`);
   body.classList.toggle("reduce-motion", !!prefs.reduceMotion);
-  applyTheme(prefs.back || 0);
+
+  body.classList.remove("felt-image");
+  body.style.backgroundImage = "";
+  if (prefs.felt === "image" && prefs.feltImage) {
+    body.classList.add("felt-image");
+    body.style.backgroundImage = `url(${prefs.feltImage})`;
+    body.style.setProperty("--felt", "#1a1a1a");
+  } else if (prefs.felt === "custom" && prefs.customFelt) {
+    body.style.setProperty("--felt", prefs.customFelt);
+  } else {
+    body.style.removeProperty("--felt");
+    body.classList.add(`felt-${prefs.felt}`);
+  }
+
+  if (prefs.back === "custom" && prefs.customBack) {
+    const c = prefs.customBack;
+    root.style.setProperty(
+      "--cur-back",
+      `linear-gradient(145deg, ${c}, ${darkenHex(c, 0.3)})`,
+    );
+    root.style.setProperty("--cur-border", darkenHex(c, 0.15));
+  } else {
+    applyTheme(typeof prefs.back === "number" ? prefs.back : 0);
+  }
+}
+
+function compressImage(file, maxDim = 1600, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = url;
+  });
 }
 
 function mkDiv(className, textOrChildren) {
@@ -566,6 +679,13 @@ function buildSettingsModal() {
   p.textContent = "Customize how the game looks.";
   modal.appendChild(h2);
   modal.appendChild(p);
+
+  const presetGroup = mkDiv("setting-group");
+  presetGroup.appendChild(mkDiv("setting-label", "Presets"));
+  const presetHost = mkDiv("presets");
+  presetHost.id = "setPresets";
+  presetGroup.appendChild(presetHost);
+  modal.appendChild(presetGroup);
 
   const sizeGroup = mkDiv("setting-group");
   sizeGroup.appendChild(mkDiv("setting-label", "Card Size"));
@@ -602,11 +722,18 @@ function buildSettingsModal() {
   motionGroup.appendChild(sw);
   modal.appendChild(motionGroup);
 
+  const footer = mkDiv("modal-footer");
+  const reset = document.createElement("button");
+  reset.className = "btn";
+  reset.id = "resetDefaultsBtn";
+  reset.textContent = "Reset to Defaults";
   const close = document.createElement("button");
   close.className = "btn gold";
   close.id = "settingsCloseBtn";
   close.textContent = "Done";
-  modal.appendChild(close);
+  footer.appendChild(reset);
+  footer.appendChild(close);
+  modal.appendChild(footer);
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
@@ -623,45 +750,152 @@ function initSettings(onChangeCallback) {
   applyPrefs(prefs);
 
   const sizeEl = document.getElementById("setSize");
+  const updateSizeActive = () => {
+    sizeEl.querySelectorAll(".seg-btn").forEach((x) => {
+      x.classList.toggle("active", x.dataset.id === prefs.size);
+    });
+  };
   SIZES.forEach((s) => {
     const b = document.createElement("button");
-    b.className = "seg-btn" + (s.id === prefs.size ? " active" : "");
+    b.className = "seg-btn";
+    b.dataset.id = s.id;
     b.textContent = s.label;
     b.onclick = () => {
       prefs.size = s.id;
       savePrefs(prefs);
       applyPrefs(prefs);
-      sizeEl
-        .querySelectorAll(".seg-btn")
-        .forEach((x, i) => x.classList.toggle("active", SIZES[i].id === s.id));
+      updateSizeActive();
       if (onChangeCallback) onChangeCallback();
     };
     sizeEl.appendChild(b);
   });
+  updateSizeActive();
 
   const feltEl = document.getElementById("setFelt");
+  const updateFeltActive = () => {
+    feltEl.querySelectorAll(".swatch").forEach((x) => {
+      const id = x.dataset.id;
+      x.classList.toggle("active", id === prefs.felt);
+    });
+  };
   FELTS.forEach((f) => {
     const b = document.createElement("div");
-    b.className = "swatch" + (f.id === prefs.felt ? " active" : "");
+    b.className = "swatch";
+    b.dataset.id = f.id;
     b.style.background = f.color;
     b.title = f.label;
     b.onclick = () => {
       prefs.felt = f.id;
       savePrefs(prefs);
       applyPrefs(prefs);
-      feltEl
-        .querySelectorAll(".swatch")
-        .forEach((x, i) => x.classList.toggle("active", FELTS[i].id === f.id));
+      updateFeltActive();
       if (onChangeCallback) onChangeCallback();
     };
     feltEl.appendChild(b);
   });
-
-  initThemes(() => {
-    prefs.back = +localStorage.getItem(THEME_KEY) || 0;
+  // Custom felt color picker
+  const feltCustom = document.createElement("label");
+  feltCustom.className = "swatch custom-swatch";
+  feltCustom.dataset.id = "custom";
+  feltCustom.title = "Custom color";
+  if (prefs.customFelt) feltCustom.style.background = prefs.customFelt;
+  const feltInput = document.createElement("input");
+  feltInput.type = "color";
+  feltInput.value = prefs.customFelt || "#1a6b3c";
+  feltInput.oninput = () => {
+    prefs.felt = "custom";
+    prefs.customFelt = feltInput.value;
+    feltCustom.style.background = feltInput.value;
     savePrefs(prefs);
+    applyPrefs(prefs);
+    updateFeltActive();
     if (onChangeCallback) onChangeCallback();
+  };
+  feltCustom.appendChild(feltInput);
+  feltEl.appendChild(feltCustom);
+
+  // Custom felt image upload
+  const feltImageSwatch = document.createElement("label");
+  feltImageSwatch.className = "swatch image-swatch";
+  feltImageSwatch.dataset.id = "image";
+  feltImageSwatch.title = "Upload image";
+  if (prefs.feltImage)
+    feltImageSwatch.style.backgroundImage = `url(${prefs.feltImage})`;
+  const feltFileInput = document.createElement("input");
+  feltFileInput.type = "file";
+  feltFileInput.accept = "image/*";
+  feltFileInput.onchange = async () => {
+    const file = feltFileInput.files && feltFileInput.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImage(file);
+      prefs.felt = "image";
+      prefs.feltImage = dataUrl;
+      feltImageSwatch.style.backgroundImage = `url(${dataUrl})`;
+      savePrefs(prefs);
+      applyPrefs(prefs);
+      updateFeltActive();
+      if (onChangeCallback) onChangeCallback();
+    } catch (err) {
+      console.error("Image upload failed:", err);
+    } finally {
+      feltFileInput.value = "";
+    }
+  };
+  feltImageSwatch.appendChild(feltFileInput);
+  feltEl.appendChild(feltImageSwatch);
+  updateFeltActive();
+
+  // Card back picker (preset themes + custom color)
+  const backEl = document.getElementById("themePicker");
+  const updateBackActive = () => {
+    backEl.querySelectorAll(".theme-btn").forEach((x) => {
+      const v = x.dataset.id;
+      const isActive =
+        v === "custom"
+          ? prefs.back === "custom"
+          : +v === (typeof prefs.back === "number" ? prefs.back : -1);
+      x.classList.toggle("active", isActive);
+      x.style.borderColor = isActive ? "#e8c840" : "transparent";
+    });
+  };
+  THEMES.forEach((t, i) => {
+    const btn = document.createElement("div");
+    btn.className = "theme-btn";
+    btn.dataset.id = String(i);
+    btn.style.background = t.bg;
+    btn.title = t.name;
+    btn.onclick = () => {
+      prefs.back = i;
+      localStorage.setItem(THEME_KEY, i);
+      savePrefs(prefs);
+      applyPrefs(prefs);
+      updateBackActive();
+      if (onChangeCallback) onChangeCallback();
+    };
+    backEl.appendChild(btn);
   });
+  // Custom card back color
+  const backCustom = document.createElement("label");
+  backCustom.className = "theme-btn custom-swatch";
+  backCustom.dataset.id = "custom";
+  backCustom.title = "Custom color";
+  if (prefs.customBack) backCustom.style.background = prefs.customBack;
+  const backInput = document.createElement("input");
+  backInput.type = "color";
+  backInput.value = prefs.customBack || "#1e3a6e";
+  backInput.oninput = () => {
+    prefs.back = "custom";
+    prefs.customBack = backInput.value;
+    backCustom.style.background = backInput.value;
+    savePrefs(prefs);
+    applyPrefs(prefs);
+    updateBackActive();
+    if (onChangeCallback) onChangeCallback();
+  };
+  backCustom.appendChild(backInput);
+  backEl.appendChild(backCustom);
+  updateBackActive();
 
   const rm = document.getElementById("setReduceMotion");
   rm.checked = !!prefs.reduceMotion;
@@ -669,6 +903,48 @@ function initSettings(onChangeCallback) {
     prefs.reduceMotion = rm.checked;
     savePrefs(prefs);
     applyPrefs(prefs);
+    if (onChangeCallback) onChangeCallback();
+  };
+
+  // Sync every control from current prefs — used by presets + reset.
+  const syncAll = () => {
+    updateSizeActive();
+    updateFeltActive();
+    feltInput.value = prefs.customFelt || "#1a6b3c";
+    feltCustom.style.background = prefs.customFelt || "";
+    feltImageSwatch.style.backgroundImage = prefs.feltImage
+      ? `url(${prefs.feltImage})`
+      : "";
+    updateBackActive();
+    backInput.value = prefs.customBack || "#1e3a6e";
+    backCustom.style.background = prefs.customBack || "";
+    rm.checked = !!prefs.reduceMotion;
+  };
+
+  const presetsEl = document.getElementById("setPresets");
+  PRESETS.forEach((preset) => {
+    const btn = document.createElement("button");
+    btn.className = "preset-btn";
+    btn.textContent = preset.label;
+    btn.onclick = () => {
+      Object.assign(prefs, preset.values);
+      if (typeof prefs.back === "number")
+        localStorage.setItem(THEME_KEY, prefs.back);
+      savePrefs(prefs);
+      applyPrefs(prefs);
+      syncAll();
+      if (onChangeCallback) onChangeCallback();
+    };
+    presetsEl.appendChild(btn);
+  });
+
+  document.getElementById("resetDefaultsBtn").onclick = () => {
+    Object.keys(prefs).forEach((k) => delete prefs[k]);
+    Object.assign(prefs, DEFAULT_PREFS);
+    localStorage.removeItem(THEME_KEY);
+    savePrefs(prefs);
+    applyPrefs(prefs);
+    syncAll();
     if (onChangeCallback) onChangeCallback();
   };
 }
