@@ -125,6 +125,45 @@ function maxAttackSlots() {
   return Math.min(6, beaten + defHand);
 }
 
+function canForward(card) {
+  if (STATE.pairs.length === 0) return false;
+  if (STATE.pairs.some((p) => p.defense)) return false;
+  if (STATE.pairs[0].attack.rank !== card.rank) return false;
+  if (STATE.pairs.length + 1 > 6) return false;
+  const newDefId = nextId(STATE.defenderId);
+  const newDef = playerOf(newDefId);
+  if (!newDef || newDef.hand.length === 0) return false;
+  return newDef.hand.length >= STATE.pairs.length + 1;
+}
+
+function canBeatAny(card) {
+  return STATE.pairs.some((p) => !p.defense && beats(p.attack, card, STATE.trumpSuit));
+}
+
+function forwardCard(playerId, card) {
+  const p = playerOf(playerId);
+  const idx = p.hand.indexOf(card);
+  if (idx === -1) return;
+  p.hand.splice(idx, 1);
+  STATE.pairs.push({ attack: card, defense: null });
+  STATE.attackerId = playerId;
+  let newDefId = nextId(STATE.defenderId);
+  let guard = 0;
+  while (playerOf(newDefId).hand.length === 0 && guard < STATE.numPlayers) {
+    newDefId = nextId(newDefId);
+    guard++;
+  }
+  STATE.defenderId = newDefId;
+  STATE.currentPlayerId = newDefId;
+  STATE.selectedCard = null;
+  STATE.phase = "defend";
+  setMsg(`${p.name} permeta: ${card.rank}${card.suit}`);
+  try { playSound("place"); } catch (e) {}
+  saveState();
+  render();
+  maybeBotAct();
+}
+
 function startGame(numPlayers) {
   cancelBot();
   numPlayers = numPlayers || 2;
@@ -251,6 +290,22 @@ function botDefend() {
   const pairIdx = STATE.pairs.findIndex((pp) => !pp.defense);
   if (pairIdx === -1) { startThrowIn(); return; }
   const pair = STATE.pairs[pairIdx];
+
+  const fwdCandidates = p.hand.filter((c) => canForward(c));
+  if (fwdCandidates.length > 0) {
+    fwdCandidates.sort((a, b) => {
+      const at = a.suit === STATE.trumpSuit ? 1 : 0;
+      const bt = b.suit === STATE.trumpSuit ? 1 : 0;
+      if (at !== bt) return at - bt;
+      return DRV[a.rank] - DRV[b.rank];
+    });
+    const fwd = fwdCandidates[0];
+    if (fwd.suit !== STATE.trumpSuit) {
+      forwardCard(STATE.currentPlayerId, fwd);
+      return;
+    }
+  }
+
   let best = null;
   for (const c of p.hand) {
     if (beats(pair.attack, c, STATE.trumpSuit)) {
@@ -372,6 +427,13 @@ function humanPass() {
 function humanTake() {
   if (STATE.phase !== "defend" || !isHuman(STATE.currentPlayerId)) return;
   takeAll(0);
+}
+
+function humanForward() {
+  if (STATE.phase !== "defend" || !isHuman(STATE.currentPlayerId)) return;
+  const card = STATE.selectedCard;
+  if (!card || !canForward(card)) return;
+  forwardCard(0, card);
 }
 
 function endRound(defenderTook) {
@@ -567,6 +629,12 @@ function render() {
     humanTurn && STATE.phase === "defend" ? "" : "none";
   document.getElementById("bitaBtn").style.display =
     humanTurn && STATE.phase === "throwIn" ? "" : "none";
+  const showFwd =
+    humanTurn &&
+    STATE.phase === "defend" &&
+    STATE.selectedCard &&
+    canForward(STATE.selectedCard);
+  document.getElementById("forwardBtn").style.display = showFwd ? "" : "none";
 }
 
 function tryHumanDefend(card, pairIdx) {
@@ -605,6 +673,16 @@ function handleHandClick(card) {
       setMsg("Tik tokios vertės, kurios jau ant stalo");
     }
   } else if (STATE.phase === "defend") {
+    if (canForward(card)) {
+      if (!canBeatAny(card)) {
+        forwardCard(0, card);
+        return;
+      }
+      STATE.selectedCard = STATE.selectedCard === card ? null : card;
+      render();
+      setMsg('Spausk „Permesti" arba pasirink puolančią kortą mušimui');
+      return;
+    }
     const undefs = [];
     STATE.pairs.forEach((p, i) => { if (!p.defense) undefs.push(i); });
     if (undefs.length === 1) {
@@ -678,6 +756,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("takeBtn").addEventListener("click", humanTake);
   document.getElementById("bitaBtn").addEventListener("click", humanPass);
+  document.getElementById("forwardBtn").addEventListener("click", humanForward);
   document.getElementById("restartBtn").addEventListener("click", () => {
     document.getElementById("gameOverOverlay").classList.remove("show");
     openNewGamePicker();
