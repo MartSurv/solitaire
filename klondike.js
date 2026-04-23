@@ -7,12 +7,9 @@ let stock = [],
   foundations = [[], [], [], []],
   tableau = [[], [], [], [], [], [], []];
 let score = 0,
-  moveCount = 0,
-  timerSec = 0,
-  timerInterval = null;
-let history = [],
-  autoCompleting = false,
-  dragState = null;
+  moveCount = 0;
+const timer = createTimer();
+let autoCompleting = false;
 
 const SAVE_KEY = "solitaire_game",
   STATS_KEY = "solitaire_stats";
@@ -49,55 +46,49 @@ function saveStats(s) {
   } catch (e) {}
 }
 
+const compactCard = (c) => ({ s: c.suit, r: c.rank, f: c.faceUp });
+function restoreCard(c) {
+  return { suit: c.s, rank: c.r, faceUp: c.f, id: `${c.r}${c.s}` };
+}
+
+function snapshotState() {
+  return {
+    stock: stock.map(compactCard),
+    waste: waste.map(compactCard),
+    foundations: foundations.map((f) => f.map(compactCard)),
+    tableau: tableau.map((p) => p.map(compactCard)),
+    score,
+    moveCount,
+  };
+}
+function restoreState(s) {
+  stock = s.stock.map(restoreCard);
+  waste = s.waste.map(restoreCard);
+  foundations = s.foundations.map((f) => f.map(restoreCard));
+  tableau = s.tableau.map((p) => p.map(restoreCard));
+  score = s.score;
+  moveCount = s.moveCount;
+}
+
+const history = createGameHistory({ snapshot: snapshotState, restore: restoreState });
+
 function saveGame() {
   try {
-    const compact = (c) => ({ s: c.suit, r: c.rank, f: c.faceUp });
-    const state = {
-      stock: stock.map(compact),
-      waste: waste.map(compact),
-      foundations: foundations.map((f) => f.map(compact)),
-      tableau: tableau.map((p) => p.map(compact)),
-      score,
-      moveCount,
-      timerSec,
-      history: history
-        .slice(-10)
-        .map((h) => ({
-          stock: h.stock.map(compact),
-          waste: h.waste.map(compact),
-          foundations: h.foundations.map((f) => f.map(compact)),
-          tableau: h.tableau.map((p) => p.map(compact)),
-          score: h.score,
-          moveCount: h.moveCount,
-        })),
-    };
+    const state = snapshotState();
+    state.timerSec = timer.get();
+    state.history = history.exportRecent(10);
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   } catch (e) {}
 }
 
-function restoreCard(c) {
-  return { suit: c.s, rank: c.r, faceUp: c.f, id: `${c.r}${c.s}` };
-}
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     const s = JSON.parse(raw);
-    stock = s.stock.map(restoreCard);
-    waste = s.waste.map(restoreCard);
-    foundations = s.foundations.map((f) => f.map(restoreCard));
-    tableau = s.tableau.map((p) => p.map(restoreCard));
-    score = s.score;
-    moveCount = s.moveCount;
-    timerSec = s.timerSec || 0;
-    history = (s.history || []).map((h) => ({
-      stock: h.stock.map(restoreCard),
-      waste: h.waste.map(restoreCard),
-      foundations: h.foundations.map((f) => f.map(restoreCard)),
-      tableau: h.tableau.map((p) => p.map(restoreCard)),
-      score: h.score,
-      moveCount: h.moveCount,
-    }));
+    restoreState(s);
+    timer.set(s.timerSec || 0);
+    history.loadFrom(s.history);
     return true;
   } catch (e) {
     return false;
@@ -130,42 +121,21 @@ function addScore(n, el) {
 }
 function addMove() {
   moveCount++;
-  if (!timerInterval) startTimer();
+  timer.start();
   updStats();
   saveGame();
 }
 
-function startTimer() {
-  clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    if (!timerPaused) {
-      timerSec++;
-      document.getElementById("timer").textContent = fmt(timerSec);
-    }
-  }, 1000);
-}
-
 // ─── History ────────────────────────────────────────────
-function saveState() {
-  history.push({
-    stock: stock.map((c) => ({ ...c })),
-    waste: waste.map((c) => ({ ...c })),
-    foundations: foundations.map((f) => f.map((c) => ({ ...c }))),
-    tableau: tableau.map((p) => p.map((c) => ({ ...c }))),
-    score,
-    moveCount,
-  });
-  if (history.length > 60) history.shift();
-}
+const saveState = () => history.save();
 function undo() {
-  if (!history.length || autoCompleting) return;
-  const s = history.pop();
-  stock = s.stock;
-  waste = s.waste;
-  foundations = s.foundations;
-  tableau = s.tableau;
-  score = s.score;
-  moveCount = s.moveCount;
+  if (autoCompleting || !history.undo()) return;
+  updStats();
+  render();
+  saveGame();
+}
+function redo() {
+  if (autoCompleting || !history.redo()) return;
   updStats();
   render();
   saveGame();
@@ -525,7 +495,7 @@ function showHint() {
 // ─── Win / Auto ─────────────────────────────────────────
 function checkWin() {
   if (foundations.every((f) => f.length === 13)) {
-    clearInterval(timerInterval);
+    timer.stop();
     autoCompleting = false;
     document.getElementById("autoBanner").classList.remove("show");
     setTimeout(showWin, 400);
@@ -540,15 +510,16 @@ function showWin() {
   if (stats.currentStreak > stats.winStreak)
     stats.winStreak = stats.currentStreak;
   if (score > stats.bestScore) stats.bestScore = score;
-  if (!stats.bestTime || timerSec < stats.bestTime) stats.bestTime = timerSec;
-  stats.totalTime += timerSec;
+  const t = timer.get();
+  if (!stats.bestTime || t < stats.bestTime) stats.bestTime = t;
+  stats.totalTime += t;
   saveStats(stats);
   if (window.triggerWinEffect) window.triggerWinEffect();
   runWinCascade();
   setTimeout(() => {
     document.getElementById("fScore").textContent = score;
     document.getElementById("fMoves").textContent = moveCount;
-    document.getElementById("fTime").textContent = fmt(timerSec);
+    document.getElementById("fTime").textContent = fmt(t);
     document.getElementById("fWins").textContent = stats.gamesWon;
     document.getElementById("fBest").textContent = stats.bestScore;
     document.getElementById("fStreak").textContent = stats.winStreak;
@@ -628,6 +599,8 @@ function render() {
   renderWaste();
   renderFnd();
   renderTab();
+  document.getElementById("undoBtn").disabled = !history.canUndo();
+  document.getElementById("redoBtn").disabled = !history.canRedo();
 }
 
 function renderStock() {
@@ -652,7 +625,7 @@ function renderWaste() {
   show.forEach((c, i) => {
     const ce = mkEl(c);
     ce.style.cssText = `position:absolute;left:${i * 20}px;top:0;z-index:${i + 1}`;
-    if (i === show.length - 1) bind(ce, c, "waste", 0, waste.length - 1);
+    if (i === show.length - 1) drag.bind(ce, c, "waste", 0, waste.length - 1);
     else ce.style.pointerEvents = "none";
     el.appendChild(ce);
   });
@@ -666,7 +639,7 @@ function renderFnd() {
       const c = f[f.length - 1],
         ce = mkEl(c);
       ce.style.cssText = "position:absolute;left:0;top:0";
-      bind(ce, c, "foundation", fi, f.length - 1);
+      drag.bind(ce, c, "foundation", fi, f.length - 1);
       el.appendChild(ce);
     }
   });
@@ -685,7 +658,7 @@ function renderTab() {
       let top = 0;
       for (let k = 0; k < ci; k++) top += pile[k].faceUp ? fanUp : fanDown;
       ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
-      if (c.faceUp) bind(ce, c, "tableau", pi, ci);
+      if (c.faceUp) drag.bind(ce, c, "tableau", pi, ci);
       el.appendChild(ce);
     });
     let h = cardH;
@@ -699,138 +672,43 @@ function renderTab() {
 // ═══════════════════════════════════════════════════════
 //  INTERACTION
 // ═══════════════════════════════════════════════════════
-function bind(el, card, srcT, srcI, cIdx) {
-  function onStart(e) {
-    if (autoCompleting || !card.faceUp) return;
-    if (e.type === "mousedown" && e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    clearHints();
-    let dCards = [],
-      dEls = [];
-    if (srcT === "tableau") {
-      const pEl = document.getElementById(`p${srcI}`),
-        all = pEl.querySelectorAll(".card");
-      for (let i = cIdx; i < tableau[srcI].length; i++) {
-        dCards.push(tableau[srcI][i]);
-        dEls.push(all[i]);
-      }
-    } else {
-      dCards = [card];
-      dEls = [el];
+const drag = createDragController({
+  fanVar: "--fan-up",
+  fanFallback: 28,
+  canDragStart: (card) => !autoCompleting && card.faceUp,
+  collectDragGroup: (el, card, srcT, srcI, cIdx) => {
+    if (srcT !== "tableau") return { cards: [card], els: [el] };
+    const all = document.getElementById(`p${srcI}`).querySelectorAll(".card");
+    const cards = [], els = [];
+    for (let i = cIdx; i < tableau[srcI].length; i++) {
+      cards.push(tableau[srcI][i]);
+      els.push(all[i]);
     }
-    const rect = el.getBoundingClientRect();
-    const pt = getXY(e);
-    dragState = {
-      cards: dCards,
-      els: dEls,
-      srcT,
-      srcI,
-      cIdx,
-      ox: pt.x - rect.left,
-      oy: pt.y - rect.top,
-      sx: pt.x,
-      sy: pt.y,
-      dragging: false,
-      clickEl: el,
-      fan:
-        parseFloat(
-          getComputedStyle(document.documentElement).getPropertyValue(
-            "--fan-up",
-          ),
-        ) || 28,
-    };
-  }
-  el.addEventListener("mousedown", onStart);
-  el.addEventListener("touchstart", onStart, { passive: false });
-  el.addEventListener("contextmenu", (e) =>
-    handleRightClick(card, srcT, srcI, cIdx, e),
-  );
-}
-
-function onPointerMove(e) {
-  if (!dragState) return;
-  const pt = e.touches
-    ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
-    : getXY(e);
-  if (!dragState.dragging) {
-    if (Math.abs(pt.x - dragState.sx) < 5 && Math.abs(pt.y - dragState.sy) < 5)
-      return;
-    dragState.dragging = true;
-    dragState.els.forEach((de) => {
-      de.classList.add("dragging");
-      document.body.appendChild(de);
-    });
-    showDrop(dragState.cards[0], dragState.srcT, dragState.srcI);
-  }
-  dragState.els.forEach((de, i) => {
-    de.style.position = "fixed";
-    de.style.left = pt.x - dragState.ox + "px";
-    de.style.top = pt.y - dragState.oy + i * dragState.fan + "px";
-    de.style.zIndex = 10000 + i;
-  });
-  e.preventDefault();
-}
-document.addEventListener("mousemove", onPointerMove);
-document.addEventListener("touchmove", onPointerMove, { passive: false });
-
-function onPointerUp(e) {
-  if (!dragState) return;
-  clearHL();
-  const pt = getXY(e, true);
-  if (!dragState.dragging) {
-    const { cards, srcT, srcI, cIdx, clickEl } = dragState;
-    dragState = null;
-    handleClick(cards[0], srcT, srcI, cIdx, clickEl);
-    return;
-  }
-  dragState.els.forEach((de) => (de.style.display = "none"));
-  const target = document.elementFromPoint(pt.x, pt.y);
-  dragState.els.forEach((de) => (de.style.display = ""));
-  let ok = false;
-  if (target) {
-    const fs = target.closest(".foundation");
-    if (fs && dragState.cards.length === 1) {
+    return { cards, els };
+  },
+  onShowDrop: (ds) => showDrop(ds.cards[0], ds.srcT, ds.srcI),
+  onClick: handleClick,
+  onRightClick: handleRightClick,
+  dropHandlers: [
+    (target, ds) => {
+      const fs = target.closest(".foundation");
+      if (!fs || ds.cards.length !== 1) return false;
       const fi = +fs.id[1];
-      if (canFnd(dragState.cards[0], fi, foundations)) {
-        dragState.els.forEach((d) => d.remove());
-        doMove(
-          dragState.srcT,
-          dragState.srcI,
-          dragState.cIdx,
-          "foundation",
-          fi,
-        );
-        ok = true;
-      }
-    }
-    if (!ok) {
+      if (!canFnd(ds.cards[0], fi, foundations)) return false;
+      doMove(ds.srcT, ds.srcI, ds.cIdx, "foundation", fi);
+      return true;
+    },
+    (target, ds) => {
       const pe = target.closest(".pile");
-      if (pe) {
-        const pi = +pe.id[1];
-        if (canTab(dragState.cards[0], tableau[pi])) {
-          dragState.els.forEach((d) => d.remove());
-          doMove(dragState.srcT, dragState.srcI, dragState.cIdx, "tableau", pi);
-          ok = true;
-        }
-      }
-    }
-  }
-  if (!ok) {
-    playSound("invalid");
-    dragState.els.forEach((d) => d.remove());
-    render();
-  }
-  dragState = null;
-}
-document.addEventListener("mouseup", onPointerUp);
-document.addEventListener("touchend", onPointerUp);
-document.addEventListener("touchcancel", () => {
-  if (dragState) {
-    dragState.els.forEach((d) => d.remove());
-    render();
-    dragState = null;
-  }
+      if (!pe) return false;
+      const pi = +pe.id[1];
+      if (!canTab(ds.cards[0], tableau[pi])) return false;
+      doMove(ds.srcT, ds.srcI, ds.cIdx, "tableau", pi);
+      return true;
+    },
+  ],
+  onDropFail: () => { playSound("invalid"); render(); },
+  onCancel: () => render(),
 });
 
 function showDrop(card, srcT, srcI) {
@@ -1070,13 +948,12 @@ function dealAnimation() {
 // ═══════════════════════════════════════════════════════
 function newGame(skipStats) {
   if (window._stopCascade) window._stopCascade();
-  clearInterval(timerInterval);
-  timerInterval = null;
+  timer.reset();
   document.getElementById("winOverlay").classList.remove("show");
   document.getElementById("autoBanner").classList.remove("show");
   document.getElementById("stuckBanner").classList.remove("show");
   autoCompleting = false;
-  dragState = null;
+  drag.reset();
   kbSelected = null;
   clearSave();
   if (!skipStats) {
@@ -1090,12 +967,10 @@ function newGame(skipStats) {
   waste = [];
   foundations = [[], [], [], []];
   tableau = [[], [], [], [], [], [], []];
-  history = [];
+  history.clear();
   score = 0;
   moveCount = 0;
-  timerSec = 0;
   updStats();
-  document.getElementById("timer").textContent = "0:00";
   for (let c = 0; c < 7; c++)
     for (let r = 0; r <= c; r++) {
       const card = deck.pop();
@@ -1111,14 +986,14 @@ function newGame(skipStats) {
 function resumeGame() {
   if (!loadGame()) return false;
   updStats();
-  document.getElementById("timer").textContent = fmt(timerSec);
   render();
-  if (timerSec > 0) startTimer();
+  if (timer.get() > 0) timer.start();
   return true;
 }
 
 // Bindings
 document.getElementById("undoBtn").onclick = undo;
+document.getElementById("redoBtn").onclick = redo;
 document.getElementById("newBtn").onclick = () => newGame();
 document.getElementById("autoBtn").onclick = runAuto;
 document.getElementById("stuckNewBtn").onclick = () => newGame();

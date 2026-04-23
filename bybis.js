@@ -49,7 +49,7 @@ function setupGame(n) {
   for (let i = 1; i < n; i++) {
     state.players.push({
       id: i,
-      name: `Botas ${i}`,
+      name: `Kompiuteris ${i}`,
       isBot: true,
       hand: [],
       done: false,
@@ -284,7 +284,7 @@ function handlePlay() {
   const cards = [...state.selected].map((i) => me.hand[i]);
   const v = validatePlay(cards);
   if (!v.valid) {
-    setMsg("❌ " + v.reason);
+    setMsg(v.reason);
     return;
   }
   doPlay(me, cards);
@@ -311,28 +311,21 @@ function handleDraw() {
 }
 
 // ── Rendering (DOM builders, no innerHTML with dynamic data) ──
-function makeDiv(cls, text) {
-  const d = document.createElement("div");
-  if (cls) d.className = cls;
-  if (text !== undefined) d.textContent = text;
-  return d;
-}
-
 function buildOpponentsDOM() {
   const el = document.getElementById("opponents");
   el.textContent = "";
   for (let i = 1; i < state.players.length; i++) {
     const p = state.players[i];
-    const d = makeDiv("opponent");
+    const d = mkDiv("opponent");
     d.id = `opp${i}`;
-    d.appendChild(makeDiv("name", p.name));
-    const cc = makeDiv("card-count");
-    const ccNum = makeDiv("cc-num", "0");
+    d.appendChild(mkDiv("name", p.name));
+    const cc = mkDiv("card-count");
+    const ccNum = mkDiv("cc-num", "0");
     cc.appendChild(ccNum);
     cc.appendChild(document.createTextNode(" kortų"));
     d.appendChild(cc);
-    d.appendChild(makeDiv("mini-hand"));
-    d.appendChild(makeDiv("letters", ""));
+    d.appendChild(mkDiv("mini-hand"));
+    d.appendChild(mkDiv("letters", ""));
     el.appendChild(d);
   }
 }
@@ -349,7 +342,7 @@ function render() {
     const mh = d.querySelector(".mini-hand");
     mh.textContent = "";
     const show = Math.min(p.hand.length, 8);
-    for (let j = 0; j < show; j++) mh.appendChild(makeDiv("mini-card"));
+    for (let j = 0; j < show; j++) mh.appendChild(mkDiv("mini-card"));
   }
 
   const stockEl = document.getElementById("stockPile");
@@ -422,13 +415,13 @@ function showRoundEnd(loser) {
   stats.textContent = "";
   for (const p of state.players) {
     const letters = state.letters[p.id] || "";
-    const div = makeDiv("fst");
-    const v = makeDiv("v", letters || "—");
+    const div = mkDiv("fst");
+    const v = mkDiv("v", letters || "—");
     v.style.color = "#e85a4f";
     v.style.fontSize = "20px";
     v.style.letterSpacing = "3px";
     div.appendChild(v);
-    div.appendChild(makeDiv("l", p.name));
+    div.appendChild(mkDiv("l", p.name));
     stats.appendChild(div);
   }
 

@@ -5,46 +5,52 @@
 let cells = [null, null, null, null];
 let foundations = [[], [], [], []];
 let tableau = [[], [], [], [], [], [], [], []];
-let moveCount = 0,
-  timerSec = 0,
-  timerInterval = null;
-let history = [],
-  autoCompleting = false,
-  dragState = null;
+let moveCount = 0;
+const timer = createTimer();
+let autoCompleting = false;
 
 const SAVE_KEY = "freecell_game";
 
 // ─── Persistence ────────────────────────────────────
-function saveGame() {
-  try {
-    const cc = (c) => (c ? { s: c.suit, r: c.rank } : null);
-    localStorage.setItem(
-      SAVE_KEY,
-      JSON.stringify({
-        cells: cells.map(cc),
-        foundations: foundations.map((f) => f.map(cc)),
-        tableau: tableau.map((p) => p.map(cc)),
-        moveCount,
-        timerSec,
-        history: history.slice(-10),
-      }),
-    );
-  } catch (e) {}
-}
+const cc = (c) => (c ? { s: c.suit, r: c.rank } : null);
 function rc(c) {
   return c ? { suit: c.s, rank: c.r, faceUp: true, id: `${c.r}${c.s}` } : null;
 }
+
+function snapshotState() {
+  return {
+    cells: cells.map(cc),
+    foundations: foundations.map((f) => f.map(cc)),
+    tableau: tableau.map((p) => p.map(cc)),
+    moveCount,
+  };
+}
+function restoreState(s) {
+  cells = s.cells.map(rc);
+  foundations = s.foundations.map((f) => f.map(rc));
+  tableau = s.tableau.map((p) => p.map(rc));
+  moveCount = s.moveCount;
+}
+
+const history = createGameHistory({ snapshot: snapshotState, restore: restoreState });
+
+function saveGame() {
+  try {
+    const state = snapshotState();
+    state.timerSec = timer.get();
+    state.history = history.exportRecent(10);
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  } catch (e) {}
+}
+
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     const s = JSON.parse(raw);
-    cells = s.cells.map(rc);
-    foundations = s.foundations.map((f) => f.map(rc));
-    tableau = s.tableau.map((p) => p.map(rc));
-    moveCount = s.moveCount;
-    timerSec = s.timerSec || 0;
-    history = s.history || [];
+    restoreState(s);
+    timer.set(s.timerSec || 0);
+    history.loadFrom(s.history);
     return true;
   } catch (e) {
     return false;
@@ -62,38 +68,21 @@ function updStats() {
 }
 function addMove() {
   moveCount++;
-  if (!timerInterval) startTimer();
+  timer.start();
   updStats();
   saveGame();
 }
-function startTimer() {
-  clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    if (!timerPaused) {
-      timerSec++;
-      document.getElementById("timer").textContent = fmt(timerSec);
-    }
-  }, 1000);
-}
 
 // ─── History ────────────────────────────────────────
-function saveState() {
-  const cc = (c) => (c ? { s: c.suit, r: c.rank } : null);
-  history.push({
-    cells: cells.map(cc),
-    foundations: foundations.map((f) => f.map(cc)),
-    tableau: tableau.map((p) => p.map(cc)),
-    moveCount,
-  });
-  if (history.length > 60) history.shift();
-}
+const saveState = () => history.save();
 function undo() {
-  if (!history.length || autoCompleting) return;
-  const s = history.pop();
-  cells = s.cells.map(rc);
-  foundations = s.foundations.map((f) => f.map(rc));
-  tableau = s.tableau.map((p) => p.map(rc));
-  moveCount = s.moveCount;
+  if (autoCompleting || !history.undo()) return;
+  updStats();
+  render();
+  saveGame();
+}
+function redo() {
+  if (autoCompleting || !history.redo()) return;
   updStats();
   render();
   saveGame();
@@ -351,7 +340,7 @@ function showHint() {
 // ─── Win / Auto ─────────────────────────────────────
 function checkWin() {
   if (foundations.every((f) => f.length === 13)) {
-    clearInterval(timerInterval);
+    timer.stop();
     autoCompleting = false;
     document.getElementById("autoBanner").classList.remove("show");
     setTimeout(() => {
@@ -361,7 +350,7 @@ function checkWin() {
       runWinCascade();
       setTimeout(() => {
         document.getElementById("fMoves").textContent = moveCount;
-        document.getElementById("fTime").textContent = fmt(timerSec);
+        document.getElementById("fTime").textContent = fmt(timer.get());
         document.getElementById("winOverlay").classList.add("show");
       }, 3000);
     }, 400);
@@ -449,6 +438,8 @@ function render() {
   renderCells();
   renderFnd();
   renderTab();
+  document.getElementById("undoBtn").disabled = !history.canUndo();
+  document.getElementById("redoBtn").disabled = !history.canRedo();
 }
 
 function renderCells() {
@@ -458,7 +449,7 @@ function renderCells() {
     if (c) {
       const ce = mkEl(c);
       ce.style.cssText = "position:absolute;left:0;top:0";
-      bind(ce, c, "cell", ci, 0);
+      drag.bind(ce, c, "cell", ci, 0);
       el.appendChild(ce);
     }
   });
@@ -472,7 +463,7 @@ function renderFnd() {
       const c = f[f.length - 1],
         ce = mkEl(c);
       ce.style.cssText = "position:absolute;left:0;top:0";
-      bind(ce, c, "foundation", fi, f.length - 1);
+      drag.bind(ce, c, "foundation", fi, f.length - 1);
       el.appendChild(ce);
     }
   });
@@ -489,7 +480,7 @@ function renderTab() {
       const ce = mkEl(c);
       const top = ci * fan;
       ce.style.cssText = `position:absolute;left:0;top:${top}px;z-index:${ci + 1}`;
-      bind(ce, c, "tableau", pi, ci);
+      drag.bind(ce, c, "tableau", pi, ci);
       el.appendChild(ce);
     });
     let h = cardH;
@@ -503,159 +494,55 @@ function renderTab() {
 // ═══════════════════════════════════════════════════════
 //  INTERACTION
 // ═══════════════════════════════════════════════════════
-function bind(el, card, srcT, srcI, cIdx) {
-  function onStart(e) {
-    if (autoCompleting) return;
-    if (e.type === "mousedown" && e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    clearHints();
-    let dCards = [],
-      dEls = [];
+const drag = createDragController({
+  fanVar: "--fan-fc",
+  fanFallback: 24,
+  canDragStart: () => !autoCompleting,
+  collectDragGroup: (el, card, srcT, srcI, cIdx) => {
     if (srcT === "tableau" && isValidRun(tableau[srcI], cIdx)) {
-      const pEl = document.getElementById(`p${srcI}`),
-        all = pEl.querySelectorAll(".card");
+      const all = document.getElementById(`p${srcI}`).querySelectorAll(".card");
+      const cards = [], els = [];
       for (let i = cIdx; i < tableau[srcI].length; i++) {
-        dCards.push(tableau[srcI][i]);
-        dEls.push(all[i]);
+        cards.push(tableau[srcI][i]);
+        els.push(all[i]);
       }
-    } else {
-      dCards = [card];
-      dEls = [el];
+      return { cards, els };
     }
-    const rect = el.getBoundingClientRect(),
-      pt = getXY(e);
-    dragState = {
-      cards: dCards,
-      els: dEls,
-      srcT,
-      srcI,
-      cIdx,
-      ox: pt.x - rect.left,
-      oy: pt.y - rect.top,
-      sx: pt.x,
-      sy: pt.y,
-      dragging: false,
-      clickEl: el,
-      fan:
-        parseFloat(
-          getComputedStyle(document.documentElement).getPropertyValue(
-            "--fan-fc",
-          ),
-        ) || 24,
-    };
-  }
-  el.addEventListener("mousedown", onStart);
-  el.addEventListener("touchstart", onStart, { passive: false });
-  el.addEventListener("contextmenu", (e) =>
-    handleRightClick(card, srcT, srcI, cIdx, e),
-  );
-}
-
-document.addEventListener("mousemove", onMove);
-document.addEventListener("touchmove", onMove, { passive: false });
-function onMove(e) {
-  if (!dragState) return;
-  const pt = e.touches
-    ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
-    : getXY(e);
-  if (!dragState.dragging) {
-    if (Math.abs(pt.x - dragState.sx) < 5 && Math.abs(pt.y - dragState.sy) < 5)
-      return;
-    dragState.dragging = true;
-    dragState.els.forEach((de) => {
-      de.classList.add("dragging");
-      document.body.appendChild(de);
-    });
-    showDrop(
-      dragState.cards[0],
-      dragState.srcT,
-      dragState.srcI,
-      dragState.cards.length,
-    );
-  }
-  dragState.els.forEach((de, i) => {
-    de.style.position = "fixed";
-    de.style.left = pt.x - dragState.ox + "px";
-    de.style.top = pt.y - dragState.oy + i * dragState.fan + "px";
-    de.style.zIndex = 10000 + i;
-  });
-  e.preventDefault();
-}
-
-document.addEventListener("mouseup", onUp);
-document.addEventListener("touchend", onUp);
-document.addEventListener("touchcancel", () => {
-  if (dragState) {
-    dragState.els.forEach((d) => d.remove());
-    render();
-    dragState = null;
-  }
-});
-
-function onUp(e) {
-  if (!dragState) return;
-  clearHL();
-  const pt = getXY(e, true);
-  if (!dragState.dragging) {
-    const { cards, srcT, srcI, cIdx, clickEl } = dragState;
-    dragState = null;
-    handleClick(cards[0], srcT, srcI, cIdx, clickEl);
-    return;
-  }
-  dragState.els.forEach((de) => (de.style.display = "none"));
-  const target = document.elementFromPoint(pt.x, pt.y);
-  dragState.els.forEach((de) => (de.style.display = ""));
-  let ok = false;
-  if (target) {
-    const fs = target.closest(".foundation");
-    if (fs && dragState.cards.length === 1) {
+    return { cards: [card], els: [el] };
+  },
+  onShowDrop: (ds) => showDrop(ds.cards[0], ds.srcT, ds.srcI, ds.cards.length),
+  onClick: handleClick,
+  onRightClick: handleRightClick,
+  dropHandlers: [
+    (target, ds) => {
+      const fs = target.closest(".foundation");
+      if (!fs || ds.cards.length !== 1) return false;
       const fi = +fs.id[1];
-      if (canFnd(dragState.cards[0], fi, foundations)) {
-        dragState.els.forEach((d) => d.remove());
-        doMove(
-          dragState.srcT,
-          dragState.srcI,
-          dragState.cIdx,
-          "foundation",
-          fi,
-        );
-        ok = true;
-      }
-    }
-    if (!ok) {
+      if (!canFnd(ds.cards[0], fi, foundations)) return false;
+      doMove(ds.srcT, ds.srcI, ds.cIdx, "foundation", fi);
+      return true;
+    },
+    (target, ds) => {
       const cs = target.closest(".freecell-slot");
-      if (cs && dragState.cards.length === 1) {
-        const ci = +cs.id[1];
-        if (cells[ci] === null) {
-          dragState.els.forEach((d) => d.remove());
-          doMove(dragState.srcT, dragState.srcI, dragState.cIdx, "cell", ci);
-          ok = true;
-        }
-      }
-    }
-    if (!ok) {
+      if (!cs || ds.cards.length !== 1) return false;
+      const ci = +cs.id[1];
+      if (cells[ci] !== null) return false;
+      doMove(ds.srcT, ds.srcI, ds.cIdx, "cell", ci);
+      return true;
+    },
+    (target, ds) => {
       const pe = target.closest(".pile");
-      if (pe) {
-        const pi = +pe.id[1];
-        if (
-          canTab(dragState.cards[0], tableau[pi]) &&
-          dragState.cards.length <= maxMovable(pi)
-        ) {
-          dragState.els.forEach((d) => d.remove());
-          doMove(dragState.srcT, dragState.srcI, dragState.cIdx, "tableau", pi);
-          ok = true;
-        }
-      }
-    }
-  }
-  if (!ok) {
-    playSound("invalid");
-    dragState.els.forEach((d) => d.remove());
-    render();
-  }
-  dragState = null;
-}
+      if (!pe) return false;
+      const pi = +pe.id[1];
+      if (!canTab(ds.cards[0], tableau[pi])) return false;
+      if (ds.cards.length > maxMovable(pi)) return false;
+      doMove(ds.srcT, ds.srcI, ds.cIdx, "tableau", pi);
+      return true;
+    },
+  ],
+  onDropFail: () => { playSound("invalid"); render(); },
+  onCancel: () => render(),
+});
 
 function showDrop(card, srcT, srcI, stackSize) {
   for (let fi = 0; fi < 4; fi++)
@@ -678,24 +565,21 @@ function showDrop(card, srcT, srcI, stackSize) {
 // ═══════════════════════════════════════════════════════
 function newGame() {
   if (window._stopCascade) window._stopCascade();
-  clearInterval(timerInterval);
-  timerInterval = null;
+  timer.reset();
   document.getElementById("winOverlay").classList.remove("show");
   document.getElementById("autoBanner").classList.remove("show");
   document.getElementById("stuckBanner").classList.remove("show");
   autoCompleting = false;
-  dragState = null;
+  drag.reset();
   clearSave();
 
   const deck = shuffle(mkDeck(true));
   cells = [null, null, null, null];
   foundations = [[], [], [], []];
   tableau = [[], [], [], [], [], [], [], []];
-  history = [];
+  history.clear();
   moveCount = 0;
-  timerSec = 0;
   updStats();
-  document.getElementById("timer").textContent = "0:00";
 
   let idx = 0;
   for (let ci = 0; ci < 8; ci++) {
@@ -710,13 +594,13 @@ function newGame() {
 function resumeGame() {
   if (!loadGame()) return false;
   updStats();
-  document.getElementById("timer").textContent = fmt(timerSec);
   render();
-  if (timerSec > 0) startTimer();
+  if (timer.get() > 0) timer.start();
   return true;
 }
 
 document.getElementById("undoBtn").onclick = undo;
+document.getElementById("redoBtn").onclick = redo;
 document.getElementById("newBtn").onclick = newGame;
 document.getElementById("autoBtn").onclick = runAuto;
 document.getElementById("stuckNewBtn").onclick = newGame;

@@ -451,6 +451,204 @@ function clearHL() {
   });
 }
 
+// Drag controller — shared card drag/drop behavior for Klondike & FreeCell.
+// Consumers provide game-specific hooks; controller owns the pointer lifecycle.
+function createDragController({
+  canDragStart,
+  collectDragGroup,
+  fanVar,
+  fanFallback,
+  onShowDrop,
+  onClick,
+  onRightClick,
+  dropHandlers,
+  onDropFail,
+  onCancel,
+}) {
+  let dragState = null;
+
+  function removeEls() {
+    if (dragState) dragState.els.forEach((d) => d.remove());
+  }
+
+  function bind(el, card, srcT, srcI, cIdx) {
+    function onStart(e) {
+      if (!canDragStart(card, srcT, srcI, cIdx)) return;
+      if (e.type === "mousedown" && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearHints();
+      const { cards, els } = collectDragGroup(el, card, srcT, srcI, cIdx);
+      const rect = el.getBoundingClientRect();
+      const pt = getXY(e);
+      dragState = {
+        cards, els, srcT, srcI, cIdx,
+        ox: pt.x - rect.left,
+        oy: pt.y - rect.top,
+        sx: pt.x, sy: pt.y,
+        dragging: false,
+        clickEl: el,
+        fan:
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(fanVar),
+          ) || fanFallback,
+      };
+    }
+    el.addEventListener("mousedown", onStart);
+    el.addEventListener("touchstart", onStart, { passive: false });
+    el.addEventListener("contextmenu", (e) =>
+      onRightClick(card, srcT, srcI, cIdx, e),
+    );
+  }
+
+  function onMove(e) {
+    if (!dragState) return;
+    const pt = e.touches
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      : getXY(e);
+    if (!dragState.dragging) {
+      if (Math.abs(pt.x - dragState.sx) < 5 && Math.abs(pt.y - dragState.sy) < 5)
+        return;
+      dragState.dragging = true;
+      dragState.els.forEach((de) => {
+        de.classList.add("dragging");
+        document.body.appendChild(de);
+      });
+      onShowDrop(dragState);
+    }
+    dragState.els.forEach((de, i) => {
+      de.style.position = "fixed";
+      de.style.left = pt.x - dragState.ox + "px";
+      de.style.top = pt.y - dragState.oy + i * dragState.fan + "px";
+      de.style.zIndex = 10000 + i;
+    });
+    e.preventDefault();
+  }
+
+  function onUp(e) {
+    if (!dragState) return;
+    clearHL();
+    const pt = getXY(e, true);
+    if (!dragState.dragging) {
+      const { cards, srcT, srcI, cIdx, clickEl } = dragState;
+      dragState = null;
+      onClick(cards[0], srcT, srcI, cIdx, clickEl);
+      return;
+    }
+    dragState.els.forEach((de) => (de.style.display = "none"));
+    const target = document.elementFromPoint(pt.x, pt.y);
+    dragState.els.forEach((de) => (de.style.display = ""));
+    let ok = false;
+    if (target) {
+      for (const h of dropHandlers) {
+        if (h(target, dragState)) { ok = true; break; }
+      }
+    }
+    removeEls();
+    if (!ok) onDropFail();
+    dragState = null;
+  }
+
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("touchmove", onMove, { passive: false });
+  document.addEventListener("mouseup", onUp);
+  document.addEventListener("touchend", onUp);
+  document.addEventListener("touchcancel", () => {
+    if (!dragState) return;
+    removeEls();
+    onCancel();
+    dragState = null;
+  });
+
+  function reset() {
+    if (!dragState) return;
+    removeEls();
+    dragState = null;
+  }
+
+  return { bind, reset };
+}
+
+// Undo/redo history. Game provides snapshot/restore; controller owns the stacks.
+// snapshot() returns an opaque, JSON-serializable state object.
+// restore(s) applies that object back to the game.
+function createGameHistory({ snapshot, restore, maxDepth = 60 }) {
+  let past = [];
+  let future = [];
+  const trim = (arr) => {
+    if (arr.length > maxDepth) arr.splice(0, arr.length - maxDepth);
+  };
+  return {
+    save() {
+      past.push(snapshot());
+      trim(past);
+      future = [];
+    },
+    undo() {
+      if (!past.length) return false;
+      future.push(snapshot());
+      trim(future);
+      restore(past.pop());
+      return true;
+    },
+    redo() {
+      if (!future.length) return false;
+      past.push(snapshot());
+      trim(past);
+      restore(future.pop());
+      return true;
+    },
+    clear() {
+      past = [];
+      future = [];
+    },
+    loadFrom(pastArr) {
+      past = Array.isArray(pastArr) ? pastArr.slice() : [];
+      future = [];
+    },
+    exportRecent(n = 10) {
+      return past.slice(-n);
+    },
+    canUndo: () => past.length > 0,
+    canRedo: () => future.length > 0,
+  };
+}
+
+function createTimer({ displayId = "timer" } = {}) {
+  let sec = 0;
+  let interval = null;
+  const render = () => {
+    const el = document.getElementById(displayId);
+    if (el) el.textContent = fmt(sec);
+  };
+  return {
+    start() {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (timerPaused) return;
+        sec++;
+        render();
+      }, 1000);
+    },
+    stop() {
+      clearInterval(interval);
+      interval = null;
+    },
+    reset() {
+      clearInterval(interval);
+      interval = null;
+      sec = 0;
+      render();
+    },
+    get: () => sec,
+    set(v) {
+      sec = v;
+      render();
+    },
+    isRunning: () => interval !== null,
+  };
+}
+
 // Hint helpers
 let hintTimeout = null;
 function clearHints() {
@@ -875,7 +1073,6 @@ function initSettings(onChangeCallback) {
     if (onChangeCallback) onChangeCallback();
   };
 
-  // Sync every control from current prefs — used by presets + reset.
   const syncAll = () => {
     updateSizeActive();
     updateFeltActive();

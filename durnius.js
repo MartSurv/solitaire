@@ -566,7 +566,6 @@ function render() {
     humanTurn && STATE.phase === "defend" ? "" : "none";
   document.getElementById("bitaBtn").style.display =
     humanTurn && STATE.phase === "throwIn" ? "" : "none";
-  document.getElementById("passBtn").style.display = "none";
 }
 
 function tryHumanDefend(card, pairIdx) {
