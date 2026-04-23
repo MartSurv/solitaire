@@ -34,14 +34,17 @@ function restoreState(s) {
 
 const history = createGameHistory({ snapshot: snapshotState, restore: restoreState });
 
-function saveGame() {
-  try {
+const saver = createDebouncedSaver({
+  key: SAVE_KEY,
+  serialize: () => {
     const state = snapshotState();
     state.timerSec = timer.get();
     state.history = history.exportRecent(10);
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-  } catch (e) {}
-}
+    return state;
+  },
+});
+const saveGame = () => saver.save();
+const clearSave = () => saver.clear();
 
 function loadGame() {
   try {
@@ -55,11 +58,6 @@ function loadGame() {
   } catch (e) {
     return false;
   }
-}
-function clearSave() {
-  try {
-    localStorage.removeItem(SAVE_KEY);
-  } catch (e) {}
 }
 
 // ─── Stats / Timer ──────────────────────────────────

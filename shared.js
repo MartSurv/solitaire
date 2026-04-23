@@ -614,6 +614,78 @@ function createGameHistory({ snapshot, restore, maxDepth = 60 }) {
   };
 }
 
+function createDebouncedSaver({ key, serialize, delay = 300 }) {
+  let timerId = null;
+  let pending = false;
+  const flush = () => {
+    if (!pending) return;
+    pending = false;
+    clearTimeout(timerId);
+    timerId = null;
+    try {
+      localStorage.setItem(key, JSON.stringify(serialize()));
+    } catch (e) {}
+  };
+  window.addEventListener("beforeunload", flush);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) flush();
+  });
+  return {
+    save() {
+      pending = true;
+      if (timerId) return;
+      timerId = setTimeout(() => {
+        timerId = null;
+        flush();
+      }, delay);
+    },
+    flush,
+    cancel() {
+      pending = false;
+      clearTimeout(timerId);
+      timerId = null;
+    },
+    clear() {
+      this.cancel();
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {}
+    },
+  };
+}
+
+function createDeferredScheduler() {
+  let timerId = null;
+  let pending = null;
+  const cancel = () => {
+    if (timerId) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+    pending = null;
+  };
+  const schedule = (fn, delay) => {
+    cancel();
+    if (document.hidden) {
+      pending = fn;
+      return;
+    }
+    timerId = setTimeout(() => {
+      timerId = null;
+      pending = null;
+      fn();
+    }, delay);
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && pending) {
+      const fn = pending;
+      pending = null;
+      fn();
+    }
+  });
+  return { schedule, cancel };
+}
+
 function createTimer({ displayId = "timer" } = {}) {
   let sec = 0;
   let interval = null;

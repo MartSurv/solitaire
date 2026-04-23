@@ -22,6 +22,8 @@ const state = {
   busy: false,
 };
 
+const bot = createDeferredScheduler();
+
 function loadLetters() {
   try {
     return JSON.parse(localStorage.getItem(STATS_KEY)) || {};
@@ -64,6 +66,7 @@ function setupGame(n) {
 }
 
 function startRound() {
+  bot.cancel();
   const deck = buildDeck();
   const nineIdx = deck.findIndex((c) => c.rank === "9");
   const start = deck.splice(nineIdx, 1)[0];
@@ -196,6 +199,7 @@ function advanceTurn() {
 
 function endRound(loser) {
   state.gameActive = false;
+  bot.cancel();
   if (loser) {
     const cur = state.letters[loser.id] || "";
     const next = WORD[cur.length];
@@ -217,7 +221,7 @@ function maybeBotTurn() {
   const p = state.players[state.currentIdx];
   if (p.isBot && !p.done) {
     state.busy = true;
-    setTimeout(botTurn, 900);
+    bot.schedule(botTurn, 900);
   } else {
     state.busy = false;
   }
@@ -238,7 +242,7 @@ function botTurn() {
     const n = drawFor(p, 3);
     setMsg(`${p.name} neturi ką mest — ima ${n} kortas`);
     render();
-    setTimeout(advanceTurn, 800);
+    bot.schedule(advanceTurn, 800);
     return;
   }
 
@@ -263,7 +267,7 @@ function botTurn() {
   const rankStr = toPlay.map((c) => c.rank + c.suit).join(" ");
   setMsg(`${p.name} meta: ${rankStr}`);
   render();
-  setTimeout(advanceTurn, 900);
+  bot.schedule(advanceTurn, 900);
 }
 
 function handleCardClick(cardIdx) {
@@ -291,7 +295,7 @@ function handlePlay() {
   setMsg(`Metei: ${cards.map((c) => c.rank + c.suit).join(" ")}`);
   state.busy = true;
   render();
-  setTimeout(advanceTurn, 600);
+  bot.schedule(advanceTurn, 600);
 }
 
 function handleDraw() {
@@ -307,7 +311,7 @@ function handleDraw() {
   setMsg(`Paėmei ${n} kortas`);
   state.busy = true;
   render();
-  setTimeout(advanceTurn, 600);
+  bot.schedule(advanceTurn, 600);
 }
 
 // ── Rendering (DOM builders, no innerHTML with dynamic data) ──

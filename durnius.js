@@ -31,29 +31,33 @@ const STATE = {
   gameActive: false,
 };
 
-let botTimer = null;
+const bot = createDeferredScheduler();
+const scheduleBot = bot.schedule;
+const cancelBot = bot.cancel;
+
+const saver = createDebouncedSaver({
+  key: STORAGE_KEY,
+  serialize: () => ({
+    deck: STATE.deck,
+    trumpSuit: STATE.trumpSuit,
+    trumpCard: STATE.trumpCard,
+    discardCount: STATE.discardCount,
+    players: STATE.players,
+    numPlayers: STATE.numPlayers,
+    attackerId: STATE.attackerId,
+    defenderId: STATE.defenderId,
+    currentPlayerId: STATE.currentPlayerId,
+    pairs: STATE.pairs,
+    throwQueue: STATE.throwQueue,
+    throwIdx: STATE.throwIdx,
+    phase: STATE.phase,
+    gameActive: STATE.gameActive,
+  }),
+});
 
 function saveState() {
   if (!STATE.gameActive) return;
-  try {
-    const snap = {
-      deck: STATE.deck,
-      trumpSuit: STATE.trumpSuit,
-      trumpCard: STATE.trumpCard,
-      discardCount: STATE.discardCount,
-      players: STATE.players,
-      numPlayers: STATE.numPlayers,
-      attackerId: STATE.attackerId,
-      defenderId: STATE.defenderId,
-      currentPlayerId: STATE.currentPlayerId,
-      pairs: STATE.pairs,
-      throwQueue: STATE.throwQueue,
-      throwIdx: STATE.throwIdx,
-      phase: STATE.phase,
-      gameActive: STATE.gameActive,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-  } catch (e) {}
+  saver.save();
 }
 
 function loadState() {
@@ -66,9 +70,7 @@ function loadState() {
   }
 }
 
-function clearStoredState() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-}
+const clearStoredState = () => saver.clear();
 
 function nextId(id) { return (id + 1) % STATE.numPlayers; }
 function playerOf(id) { return STATE.players[id]; }
@@ -124,7 +126,7 @@ function maxAttackSlots() {
 }
 
 function startGame(numPlayers) {
-  if (botTimer) { clearTimeout(botTimer); botTimer = null; }
+  cancelBot();
   numPlayers = numPlayers || 2;
   STATE.numPlayers = numPlayers;
   STATE.players = [];
@@ -182,7 +184,7 @@ function startGame(numPlayers) {
 }
 
 function restoreGame(snap) {
-  if (botTimer) { clearTimeout(botTimer); botTimer = null; }
+  cancelBot();
   STATE.deck = snap.deck;
   STATE.trumpSuit = snap.trumpSuit;
   STATE.trumpCard = snap.trumpCard;
@@ -210,8 +212,7 @@ function maybeBotAct() {
   if (!p || !p.isBot) { STATE.busy = false; render(); return; }
   STATE.busy = true;
   render();
-  botTimer = setTimeout(() => {
-    botTimer = null;
+  scheduleBot(() => {
     if (STATE.phase === "attack") botAttack();
     else if (STATE.phase === "defend") botDefend();
     else if (STATE.phase === "throwIn") botThrowIn();
@@ -277,9 +278,9 @@ function defendCard(playerId, card, pairIdx) {
 
   const remaining = STATE.pairs.filter((pp) => !pp.defense).length;
   if (remaining === 0) {
-    setTimeout(startThrowIn, 600);
+    scheduleBot(startThrowIn, 600);
   } else {
-    setTimeout(maybeBotAct, 400);
+    scheduleBot(maybeBotAct, 400);
   }
 }
 
