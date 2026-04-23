@@ -520,18 +520,18 @@ function scoreFoundationMove(card, foundations) {
 // ═══════════════════════════════════════════════════════
 const PREFS_KEY = "solitaire_prefs";
 const SIZES = [
-  { id: "tiny", label: "Tiny" },
-  { id: "small", label: "Small" },
-  { id: "medium", label: "Medium" },
-  { id: "large", label: "Large" },
-  { id: "huge", label: "Huge" },
+  { id: "tiny", label: "Mažiausios" },
+  { id: "small", label: "Mažos" },
+  { id: "medium", label: "Vidutinės" },
+  { id: "large", label: "Didelės" },
+  { id: "huge", label: "Didžiausios" },
 ];
 const FELTS = [
-  { id: "green", label: "Green", color: "#1a6b3c" },
-  { id: "blue", label: "Blue", color: "#1e3f6b" },
-  { id: "burgundy", label: "Burgundy", color: "#6b1a1a" },
-  { id: "charcoal", label: "Charcoal", color: "#2a2a2a" },
-  { id: "purple", label: "Purple", color: "#4a1a6b" },
+  { id: "green", label: "Žalias", color: "#1a6b3c" },
+  { id: "blue", label: "Mėlynas", color: "#1e3f6b" },
+  { id: "burgundy", label: "Bordinis", color: "#6b1a1a" },
+  { id: "charcoal", label: "Juodas", color: "#2a2a2a" },
+  { id: "purple", label: "Violetinis", color: "#4a1a6b" },
 ];
 const DEFAULT_PREFS = {
   size: "medium",
@@ -542,50 +542,6 @@ const DEFAULT_PREFS = {
   customBack: null,
   reduceMotion: false,
 };
-
-const PRESETS = [
-  {
-    id: "default",
-    label: "Default",
-    values: { ...DEFAULT_PREFS },
-  },
-  {
-    id: "dark",
-    label: "Dark Mode",
-    values: {
-      size: "medium",
-      felt: "charcoal",
-      customFelt: null,
-      back: 3,
-      customBack: null,
-      reduceMotion: false,
-    },
-  },
-  {
-    id: "retro",
-    label: "Retro",
-    values: {
-      size: "medium",
-      felt: "burgundy",
-      customFelt: null,
-      back: 1,
-      customBack: null,
-      reduceMotion: false,
-    },
-  },
-  {
-    id: "accessibility",
-    label: "Accessibility",
-    values: {
-      size: "huge",
-      felt: "charcoal",
-      customFelt: null,
-      back: 3,
-      customBack: null,
-      reduceMotion: true,
-    },
-  },
-];
 
 function darkenHex(hex, pct) {
   const n = parseInt(hex.replace("#", ""), 16);
@@ -695,42 +651,35 @@ function buildSettingsModal() {
 
   const modal = mkDiv("modal settings-modal");
   const h2 = document.createElement("h2");
-  h2.textContent = "Settings";
+  h2.textContent = "Nustatymai";
   const p = document.createElement("p");
-  p.textContent = "Customize how the game looks.";
+  p.textContent = "Pritaikyk žaidimo išvaizdą.";
   modal.appendChild(h2);
   modal.appendChild(p);
 
-  const presetGroup = mkDiv("setting-group");
-  presetGroup.appendChild(mkDiv("setting-label", "Presets"));
-  const presetHost = mkDiv("presets");
-  presetHost.id = "setPresets";
-  presetGroup.appendChild(presetHost);
-  modal.appendChild(presetGroup);
-
   const sizeGroup = mkDiv("setting-group");
-  sizeGroup.appendChild(mkDiv("setting-label", "Card Size"));
+  sizeGroup.appendChild(mkDiv("setting-label", "Kortų dydis"));
   const sizeHost = mkDiv("seg");
   sizeHost.id = "setSize";
   sizeGroup.appendChild(sizeHost);
   modal.appendChild(sizeGroup);
 
   const feltGroup = mkDiv("setting-group");
-  feltGroup.appendChild(mkDiv("setting-label", "Felt Color"));
+  feltGroup.appendChild(mkDiv("setting-label", "Staltiesės spalva"));
   const feltHost = mkDiv("swatches");
   feltHost.id = "setFelt";
   feltGroup.appendChild(feltHost);
   modal.appendChild(feltGroup);
 
   const backGroup = mkDiv("setting-group");
-  backGroup.appendChild(mkDiv("setting-label", "Card Back"));
+  backGroup.appendChild(mkDiv("setting-label", "Kortų nugarėlė"));
   const backHost = mkDiv("themes");
   backHost.id = "themePicker";
   backGroup.appendChild(backHost);
   modal.appendChild(backGroup);
 
   const motionGroup = mkDiv("setting-group setting-row");
-  motionGroup.appendChild(mkDiv("setting-label", "Reduce Motion"));
+  motionGroup.appendChild(mkDiv("setting-label", "Mažiau animacijų"));
   const sw = document.createElement("label");
   sw.className = "switch";
   const cb = document.createElement("input");
@@ -747,11 +696,11 @@ function buildSettingsModal() {
   const reset = document.createElement("button");
   reset.className = "btn";
   reset.id = "resetDefaultsBtn";
-  reset.textContent = "Reset to Defaults";
+  reset.textContent = "Atstatyti numatytus";
   const close = document.createElement("button");
   close.className = "btn gold";
   close.id = "settingsCloseBtn";
-  close.textContent = "Done";
+  close.textContent = "Gerai";
   footer.appendChild(reset);
   footer.appendChild(close);
   modal.appendChild(footer);
@@ -940,21 +889,6 @@ function initSettings(onChangeCallback) {
     backCustom.style.background = prefs.customBack || "";
     rm.checked = !!prefs.reduceMotion;
   };
-
-  const presetsEl = document.getElementById("setPresets");
-  PRESETS.forEach((preset) => {
-    const btn = document.createElement("button");
-    btn.className = "preset-btn";
-    btn.textContent = preset.label;
-    btn.onclick = () => {
-      Object.assign(prefs, preset.values);
-      savePrefs(prefs);
-      applyPrefs(prefs);
-      syncAll();
-      if (onChangeCallback) onChangeCallback();
-    };
-    presetsEl.appendChild(btn);
-  });
 
   document.getElementById("resetDefaultsBtn").onclick = () => {
     Object.keys(prefs).forEach((k) => delete prefs[k]);

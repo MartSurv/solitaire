@@ -1,134 +1,105 @@
 <!doctype html>
-<html lang="en">
+<html lang="lt">
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <title>Klondike Solitaire</title>
+    <title>Kortų Žaidimai</title>
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>"
     />
     <link rel="stylesheet" href="shared.css" />
   </head>
-  <body>
+  <body class="menu-body">
     <canvas id="bg"></canvas>
     <div class="felt"></div>
-    <canvas id="winCanvas"></canvas>
 
-    <div class="hdr">
-      <div class="logo">
-        <i>♠</i> Klondike <a href="freecell.html">FreeCell</a>
-      </div>
-      <div class="stats">
-        <div class="st">Score<b id="score">0</b></div>
-        <div class="st">Moves<b id="moves">0</b></div>
-        <div class="st">Time<b id="timer">0:00</b></div>
-      </div>
-      <div class="ctrls">
-        <button class="btn" id="hintBtn">Hint</button>
-        <div class="ctrl-divider"></div>
-        <button class="btn" id="undoBtn">Undo</button>
-        <button class="btn" id="statsBtn">Stats</button>
-        <button class="btn" id="settingsBtn">Settings</button>
-        <button class="btn gold" id="newBtn">New Game</button>
-      </div>
-    </div>
-
-    <div class="game" id="game">
-      <div class="top-row">
-        <div class="top-left">
-          <div class="slot stock" id="stock"></div>
-          <div class="waste" id="waste"></div>
+    <div class="menu-wrap">
+      <header class="menu-hero">
+        <div class="suits-row">
+          <span class="suit-s">♠</span>
+          <span class="suit-h">♥</span>
+          <span class="suit-d">♦</span>
+          <span class="suit-c">♣</span>
         </div>
-        <div class="top-right">
-          <div class="slot foundation" id="f0" data-suit="♠"></div>
-          <div class="slot foundation" id="f1" data-suit="♥"></div>
-          <div class="slot foundation" id="f2" data-suit="♦"></div>
-          <div class="slot foundation" id="f3" data-suit="♣"></div>
-        </div>
-      </div>
-      <div class="tableau">
-        <div class="pile" id="p0"></div>
-        <div class="pile" id="p1"></div>
-        <div class="pile" id="p2"></div>
-        <div class="pile" id="p3"></div>
-        <div class="pile" id="p4"></div>
-        <div class="pile" id="p5"></div>
-        <div class="pile" id="p6"></div>
-      </div>
-    </div>
+        <h1>Kortų Žaidimai</h1>
+        <p class="tagline">Klasikiniai lietuviški ir pasaulio kortų žaidimai</p>
+      </header>
 
-    <div class="auto-banner" id="autoBanner">
-      All cards revealed!
-      <button class="btn gold" id="autoBtn">Auto Complete</button>
-    </div>
-    <div class="auto-banner" id="stuckBanner">
-      No moves available.
-      <button class="btn gold" id="stuckNewBtn">New Game</button>
-    </div>
+      <section class="games-grid">
+        <a class="game-card" href="durnius.html">
+          <div class="game-icon icon-card black">
+            <span class="corner-tl"><b>D</b><i>♣</i></span>
+            <span class="icon-big">♣</span>
+            <span class="corner-br"><b>D</b><i>♣</i></span>
+          </div>
+          <div class="game-info">
+            <h2>Durnius</h2>
+            <p>Klasikinis lietuviškas žaidimas su koziriu</p>
+            <div class="game-meta">
+              <span>2 žaidėjai</span>
+              <span class="sep">·</span>
+              <span>36 kortos</span>
+            </div>
+          </div>
+        </a>
 
-    <div class="overlay" id="winOverlay">
-      <div class="modal">
-        <h2>You Win!</h2>
-        <p>Well played. Here are your stats.</p>
-        <div class="fstats">
-          <div class="fst">
-            <div class="v" id="fScore">0</div>
-            <div class="l">Score</div>
+        <a class="game-card" href="klondike.html">
+          <div class="game-icon icon-card black">
+            <span class="corner-tl"><b>K</b><i>♠</i></span>
+            <span class="icon-big">♠</span>
+            <span class="corner-br"><b>K</b><i>♠</i></span>
           </div>
-          <div class="fst">
-            <div class="v" id="fMoves">0</div>
-            <div class="l">Moves</div>
+          <div class="game-info">
+            <h2>Pasjansas</h2>
+            <p>Klasikinis pasjansas vienam žaidėjui</p>
+            <div class="game-meta">
+              <span>1 žaidėjas</span>
+              <span class="sep">·</span>
+              <span>52 kortos</span>
+            </div>
           </div>
-          <div class="fst">
-            <div class="v" id="fTime">0:00</div>
-            <div class="l">Time</div>
+        </a>
+
+        <a class="game-card" href="freecell.html">
+          <div class="game-icon icon-card red">
+            <span class="corner-tl"><b>F</b><i>♦</i></span>
+            <span class="icon-big">♦</span>
+            <span class="corner-br"><b>F</b><i>♦</i></span>
           </div>
-        </div>
-        <div class="fstats" style="opacity: 0.55; margin-top: -10px">
-          <div class="fst">
-            <div class="v" id="fWins" style="font-size: 18px">0</div>
-            <div class="l">Total Wins</div>
+          <div class="game-info">
+            <h2>FreeCell</h2>
+            <p>Strateginis pasjansas su laisvomis celėmis</p>
+            <div class="game-meta">
+              <span>1 žaidėjas</span>
+              <span class="sep">·</span>
+              <span>52 kortos</span>
+            </div>
           </div>
-          <div class="fst">
-            <div class="v" id="fBest" style="font-size: 18px">0</div>
-            <div class="l">Best Score</div>
+        </a>
+
+        <div class="game-card disabled">
+          <div class="game-icon icon-card red">
+            <span class="corner-tl"><b>T</b><i>♥</i></span>
+            <span class="icon-big">♥</span>
+            <span class="corner-br"><b>T</b><i>♥</i></span>
           </div>
-          <div class="fst">
-            <div class="v" id="fStreak" style="font-size: 18px">0</div>
-            <div class="l">Win Streak</div>
+          <div class="game-info">
+            <h2>Tūkstantis</h2>
+            <p>Netrukus…</p>
+            <div class="game-meta">
+              <span>Ruošiama</span>
+            </div>
           </div>
         </div>
-        <button
-          class="btn gold"
-          style="font-size: 14px; padding: 11px 30px"
-          id="playAgainBtn"
-        >
-          Play Again
-        </button>
-      </div>
-    </div>
+      </section>
 
-    <div class="overlay" id="statsOverlay">
-      <div class="modal">
-        <h2>Statistics</h2>
-        <p>Your lifetime performance.</p>
-        <div class="stats-grid" id="statsGrid"></div>
-        <button
-          class="btn gold"
-          onclick="
-            document.getElementById('statsOverlay').classList.remove('show')
-          "
-        >
-          Close
-        </button>
-      </div>
+      <footer class="menu-footer">
+        <p>Pasirink žaidimą ir pradėk</p>
+      </footer>
     </div>
-
-    <script src="shared.js"></script>
-    <script src="klondike.js"></script>
   </body>
 </html>

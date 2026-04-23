@@ -1014,14 +1014,14 @@ function showStatsModal() {
     ? Math.round(stats.totalTime / stats.gamesWon)
     : 0;
   document.getElementById("statsGrid").innerHTML = [
-    ["Games Played", stats.gamesPlayed],
-    ["Games Won", stats.gamesWon],
-    ["Win Rate", winRate + "%"],
-    ["Best Score", stats.bestScore || "—"],
-    ["Best Time", stats.bestTime ? fmt(stats.bestTime) : "—"],
-    ["Avg Win Time", avgTime ? fmt(avgTime) : "—"],
-    ["Win Streak", stats.winStreak],
-    ["Current Streak", stats.currentStreak],
+    ["Sužaista", stats.gamesPlayed],
+    ["Laimėta", stats.gamesWon],
+    ["Laimėjimų %", winRate + "%"],
+    ["Geriausias rezultatas", stats.bestScore || "—"],
+    ["Greičiausias laikas", stats.bestTime ? fmt(stats.bestTime) : "—"],
+    ["Vid. laimėjimo laikas", avgTime ? fmt(avgTime) : "—"],
+    ["Pergalių serija", stats.winStreak],
+    ["Dabartinė serija", stats.currentStreak],
   ]
     .map(
       ([l, v]) =>

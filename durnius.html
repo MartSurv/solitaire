@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="lt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Durnius — Kortų Žaidimai</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>"
+    />
+    <link rel="stylesheet" href="shared.css" />
+  </head>
+  <body>
+    <canvas id="bg"></canvas>
+    <div class="felt"></div>
+
+    <div class="hdr">
+      <div class="logo">
+        <a href="index.html" class="home-link">←</a>
+        <i>♣</i> Durnius
+      </div>
+      <div class="stats">
+        <div class="st">Koziris<b id="trumpSuit">—</b></div>
+        <div class="st">Kaladėje<b id="deckCount">36</b></div>
+        <div class="st">Bitoje<b id="discardCount">0</b></div>
+      </div>
+      <div class="ctrls">
+        <button class="btn icon-btn" id="rulesBtn" title="Taisyklės" aria-label="Taisyklės">?</button>
+        <div class="ctrl-divider"></div>
+        <button class="btn gold" id="newBtn">Naujas žaidimas</button>
+      </div>
+    </div>
+
+    <div class="durnius-table">
+      <div class="opponents-row" id="opponentsRow"></div>
+
+      <div class="turn-indicator" id="turnIndicator">Tavo ėjimas</div>
+
+      <div class="table-area">
+        <div class="deck-area">
+          <div class="deck-stack">
+            <div class="deck-label">Kaladė</div>
+            <div class="deck-pile" id="deckPile"></div>
+          </div>
+          <div class="deck-stack">
+            <div class="deck-label">Koziris</div>
+            <div class="trump-card" id="trumpCard"></div>
+          </div>
+        </div>
+
+        <div class="battlefield" id="battlefield"></div>
+
+        <div class="discard-area">
+          <div class="deck-stack">
+            <div class="deck-label">Bita</div>
+            <div class="discard-stack" id="discardStack"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn" id="takeBtn" style="display:none;">Imti kortas</button>
+        <button class="btn gold" id="bitaBtn" style="display:none;">Bita</button>
+        <button class="btn" id="passBtn" style="display:none;">Pabaigti puolimą</button>
+      </div>
+
+      <div class="player-area">
+        <div class="player-label">Tavo ranka</div>
+        <div class="player-hand" id="playerHand"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="rulesOverlay">
+      <div class="modal modal-wide">
+        <h2>Durniaus taisyklės</h2>
+        <div class="rules-content">
+          <ul>
+            <li>36 kortos (6–A × 4 rūšys), 2–4 žaidėjai po 6 kortas</li>
+            <li>Paskutinė kaladės korta apverčiama — jos rūšis yra <b>koziris</b></li>
+            <li>Pradeda tas, kas turi žemiausią kozirį</li>
+            <li><b>Puolėjas</b> meta kortą — <b>gynėjas</b> turi ją „mušt":
+              <ul>
+                <li>Ta pačia rūšim, aukštesne verte, arba</li>
+                <li>Bet kokiu koziriu (jei puolama ne koziriu)</li>
+                <li>Jei puolama koziriu — reikia aukštesnio kozirio</li>
+              </ul>
+            </li>
+            <li>Po gynėjo ėjimo kiti žaidėjai (ne gynėjas) gali pridėt kortų — bet tik tokios vertės, kuri jau guli ant stalo</li>
+            <li>Maksimaliai 6 kortų poros per vieną ratą, negali viršyt gynėjo turimų kortų</li>
+            <li>Jei gynėjas sumuša visas — kortos keliauja į <b>bitą</b> (iš žaidimo)</li>
+            <li>Jei gynėjas neįstengia — ima visas kortas į ranką ir praleidžia ėjimą</li>
+            <li>Po rato visi žaidėjai dasideda kortų iš kaladės iki 6</li>
+            <li>Kai kaladė baigiasi — toliau žaidžiama be dasidėjimo</li>
+            <li><b>Durnius</b> — tas, kas lieka paskutinis su kortomis rankoje</li>
+          </ul>
+        </div>
+        <button
+          class="btn gold"
+          onclick="document.getElementById('rulesOverlay').classList.remove('show')"
+        >
+          Uždaryti
+        </button>
+      </div>
+    </div>
+
+    <div class="overlay" id="playersOverlay">
+      <div class="modal">
+        <h2>Naujas žaidimas</h2>
+        <p>Kiek žaidėjų?</p>
+        <div class="player-count-picker">
+          <button class="btn player-count-btn" data-count="2">2 žaidėjai</button>
+          <button class="btn player-count-btn" data-count="3">3 žaidėjai</button>
+          <button class="btn player-count-btn" data-count="4">4 žaidėjai</button>
+        </div>
+        <button
+          class="btn"
+          id="playersCancelBtn"
+          style="margin-top: 16px; background: #f5f5f5; color: #666;"
+        >
+          Atšaukti
+        </button>
+      </div>
+    </div>
+
+    <div class="overlay" id="gameOverOverlay">
+      <div class="modal">
+        <h2 id="gameOverTitle">Žaidimas baigtas</h2>
+        <p id="gameOverMsg"></p>
+        <button class="btn gold" id="restartBtn">Žaisti dar</button>
+      </div>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="durnius.js"></script>
+  </body>
+</html>

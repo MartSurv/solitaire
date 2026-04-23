@@ -6,20 +6,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <title>FreeCell — Kortų Žaidimai</title>
+    <title>Pasjansas — Kortų Žaidimai</title>
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>"
     />
     <link rel="stylesheet" href="shared.css" />
-    <style>
-      .top-left {
-        gap: 10px;
-      }
-      .top-right {
-        gap: 10px;
-      }
-    </style>
   </head>
   <body>
     <canvas id="bg"></canvas>
@@ -29,15 +21,17 @@
     <div class="hdr">
       <div class="logo">
         <a href="index.html" class="home-link">←</a>
-        <i>♠</i> FreeCell
+        <i>♠</i> Pasjansas
       </div>
       <div class="stats">
+        <div class="st">Taškai<b id="score">0</b></div>
         <div class="st">Ėjimai<b id="moves">0</b></div>
         <div class="st">Laikas<b id="timer">0:00</b></div>
       </div>
       <div class="ctrls">
         <button class="btn icon-btn" id="hintBtn" title="Užuomina" aria-label="Užuomina">💡</button>
         <button class="btn icon-btn" id="undoBtn" title="Atšaukti" aria-label="Atšaukti">↶</button>
+        <button class="btn icon-btn" id="statsBtn" title="Statistika" aria-label="Statistika">📊</button>
         <button class="btn icon-btn" id="settingsBtn" title="Nustatymai" aria-label="Nustatymai">⚙</button>
         <div class="ctrl-divider"></div>
         <button class="btn gold" id="newBtn">Naujas žaidimas</button>
@@ -47,10 +41,8 @@
     <div class="game" id="game">
       <div class="top-row">
         <div class="top-left">
-          <div class="slot freecell-slot" id="c0"></div>
-          <div class="slot freecell-slot" id="c1"></div>
-          <div class="slot freecell-slot" id="c2"></div>
-          <div class="slot freecell-slot" id="c3"></div>
+          <div class="slot stock" id="stock"></div>
+          <div class="waste" id="waste"></div>
         </div>
         <div class="top-right">
           <div class="slot foundation" id="f0" data-suit="♠"></div>
@@ -67,12 +59,11 @@
         <div class="pile" id="p4"></div>
         <div class="pile" id="p5"></div>
         <div class="pile" id="p6"></div>
-        <div class="pile" id="p7"></div>
       </div>
     </div>
 
     <div class="auto-banner" id="autoBanner">
-      Visos kortos išdėliotos!
+      Visos kortos atvertos!
       <button class="btn gold" id="autoBtn">Užbaigti automatiškai</button>
     </div>
     <div class="auto-banner" id="stuckBanner">
@@ -83,8 +74,12 @@
     <div class="overlay" id="winOverlay">
       <div class="modal">
         <h2>Laimėjai!</h2>
-        <p>FreeCell įveiktas.</p>
+        <p>Puikus žaidimas. Štai tavo statistika.</p>
         <div class="fstats">
+          <div class="fst">
+            <div class="v" id="fScore">0</div>
+            <div class="l">Taškai</div>
+          </div>
           <div class="fst">
             <div class="v" id="fMoves">0</div>
             <div class="l">Ėjimai</div>
@@ -92,6 +87,20 @@
           <div class="fst">
             <div class="v" id="fTime">0:00</div>
             <div class="l">Laikas</div>
+          </div>
+        </div>
+        <div class="fstats" style="opacity: 0.55; margin-top: -10px">
+          <div class="fst">
+            <div class="v" id="fWins" style="font-size: 18px">0</div>
+            <div class="l">Viso pergalių</div>
+          </div>
+          <div class="fst">
+            <div class="v" id="fBest" style="font-size: 18px">0</div>
+            <div class="l">Geriausias rezultatas</div>
+          </div>
+          <div class="fst">
+            <div class="v" id="fStreak" style="font-size: 18px">0</div>
+            <div class="l">Pergalių serija</div>
           </div>
         </div>
         <button
@@ -104,7 +113,23 @@
       </div>
     </div>
 
+    <div class="overlay" id="statsOverlay">
+      <div class="modal">
+        <h2>Statistika</h2>
+        <p>Tavo viso laiko rezultatai.</p>
+        <div class="stats-grid" id="statsGrid"></div>
+        <button
+          class="btn gold"
+          onclick="
+            document.getElementById('statsOverlay').classList.remove('show')
+          "
+        >
+          Uždaryti
+        </button>
+      </div>
+    </div>
+
     <script src="shared.js"></script>
-    <script src="freecell-game.js"></script>
+    <script src="klondike.js"></script>
   </body>
 </html>
