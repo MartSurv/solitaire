@@ -598,7 +598,7 @@ function render() {
           playable = canAttackWith(c, STATE.pairs) && STATE.pairs.length < 6;
         } else if (STATE.phase === "defend") {
           const unbeat = STATE.pairs.filter((p) => !p.defense).map((p) => p.attack);
-          playable = unbeat.some((a) => beats(a, c, STATE.trumpSuit));
+          playable = unbeat.some((a) => beats(a, c, STATE.trumpSuit)) || canForward(c);
         }
       }
       el.classList.add(playable ? "playable" : "unplayable");
