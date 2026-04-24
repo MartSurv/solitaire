@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="lt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>UNO — Kortų Žaidimai</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>"
+    />
+    <link rel="stylesheet" href="shared.css" />
+    <link rel="stylesheet" href="uno.css" />
+    <link rel="prefetch" href="index.html" />
+  </head>
+  <body>
+    <canvas id="bg"></canvas>
+    <div class="felt"></div>
+
+    <div class="hdr">
+      <div class="logo">
+        <a href="index.html" class="home-link">←</a>
+        <i>♦</i> UNO
+      </div>
+      <div class="stats">
+        <div class="st">Spalva<b id="currentColor"><span class="uno-current-color"></span></b></div>
+        <div class="st">Kaladėje<b id="deckCount">0</b></div>
+      </div>
+      <div class="ctrls">
+        <button class="btn icon-btn" id="rulesBtn" title="Taisyklės" aria-label="Taisyklės">?</button>
+        <div class="ctrl-divider"></div>
+        <button class="btn gold" id="newBtn">Naujas žaidimas</button>
+      </div>
+    </div>
+
+    <div class="uno-table">
+      <div class="opponents-row" id="opponentsRow"></div>
+
+      <div class="uno-turn-indicator" id="turnIndicator">Tavo ėjimas</div>
+      <div class="uno-message-log" id="msgLog"></div>
+
+      <div class="uno-center-area">
+        <div class="uno-pile">
+          <div class="uno-pile-label">Kaladė</div>
+          <div class="uno-deck-pile" id="deckPile"></div>
+        </div>
+        <div class="uno-direction" id="directionArrow">↻</div>
+        <div class="uno-pile">
+          <div class="uno-pile-label">Bita</div>
+          <div class="uno-discard-pile" id="discardPile"></div>
+        </div>
+      </div>
+
+      <div class="uno-action-bar">
+        <button class="btn uno-btn-uno" id="unoBtn" style="display:none;">UNO!</button>
+        <button class="btn" id="passBtn" style="display:none;">Praleisti</button>
+      </div>
+
+      <div class="uno-player-area">
+        <div class="uno-player-label">Tavo ranka</div>
+        <div class="uno-player-hand" id="playerHand"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="rulesOverlay">
+      <div class="modal modal-wide">
+        <h2>UNO taisyklės</h2>
+        <div class="rules-content">
+          <ul>
+            <li>108 kortos: 4 spalvos (raudona, geltona, žalia, mėlyna) × (0, 1–9, +2, Skip, Reverse) + 4 Wild + 4 Wild+4</li>
+            <li>Kiekvienas žaidėjas pradeda su 7 kortomis</li>
+            <li>Mesk kortą tos pačios <b>spalvos</b> arba tos pačios <b>vertės</b> kaip viršutinė bitos korta</li>
+            <li><b>Wild</b> — bet kada, pasirink naują spalvą</li>
+            <li><b>Wild +4</b> — kitas žaidėjas ima 4 kortas ir praleidžia, pasirink spalvą</li>
+            <li><b>+2</b> — kitas žaidėjas ima 2 kortas ir praleidžia</li>
+            <li><b>Skip</b> — kitas žaidėjas praleidžia ėjimą</li>
+            <li><b>Reverse</b> — pakeičia ėjimo kryptį</li>
+            <li>Jei neturi tinkamos kortos, imi vieną iš kaladės. Jei ji tinkama — gali iškart mesti</li>
+            <li>Kai lieka <b>1 korta</b>, privalai paspaust „UNO!" mygtuką. Jei pamirši — gausi <b>+2 kortas</b></li>
+            <li>Laimi tas, kas pirmas atsikrato visų kortų</li>
+          </ul>
+        </div>
+        <button
+          class="btn gold"
+          onclick="document.getElementById('rulesOverlay').classList.remove('show')"
+        >
+          Uždaryti
+        </button>
+      </div>
+    </div>
+
+    <div class="overlay" id="playersOverlay">
+      <div class="modal">
+        <h2>Naujas žaidimas</h2>
+        <p>Kiek žaidėjų?</p>
+        <div class="player-count-picker">
+          <button class="btn player-count-btn" data-count="2">2 žaidėjai</button>
+          <button class="btn player-count-btn" data-count="3">3 žaidėjai</button>
+          <button class="btn player-count-btn" data-count="4">4 žaidėjai</button>
+        </div>
+        <button
+          class="btn"
+          id="playersCancelBtn"
+          style="margin-top: 16px; background: #f5f5f5; color: #666;"
+        >
+          Atšaukti
+        </button>
+      </div>
+    </div>
+
+    <div class="overlay" id="colorOverlay">
+      <div class="modal">
+        <h2>Pasirink spalvą</h2>
+        <div class="uno-color-picker">
+          <button class="btn uno-color-btn c-r" data-color="r">Raudona</button>
+          <button class="btn uno-color-btn c-y" data-color="y">Geltona</button>
+          <button class="btn uno-color-btn c-g" data-color="g">Žalia</button>
+          <button class="btn uno-color-btn c-b" data-color="b">Mėlyna</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="gameOverOverlay">
+      <div class="modal">
+        <h2 id="gameOverTitle">Žaidimas baigtas</h2>
+        <p id="gameOverMsg"></p>
+        <button class="btn gold" id="restartBtn">Žaisti dar</button>
+      </div>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="uno.js"></script>
+  </body>
+</html>

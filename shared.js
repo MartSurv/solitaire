@@ -905,6 +905,10 @@ function compressImage(file, maxDim = 1600, quality = 0.85) {
   });
 }
 
+function clearEl(el) {
+  while (el && el.firstChild) el.removeChild(el.firstChild);
+}
+
 function mkDiv(className, textOrChildren) {
   const d = document.createElement("div");
   if (className) d.className = className;

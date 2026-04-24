@@ -8,10 +8,6 @@ DURNIUS_RANKS.forEach((r, i) => (DRV[r] = i));
 
 const STORAGE_KEY = "durnius_state_v2";
 
-function clearEl(el) {
-  while (el && el.firstChild) el.removeChild(el.firstChild);
-}
-
 const STATE = {
   deck: [],
   trumpSuit: null,
